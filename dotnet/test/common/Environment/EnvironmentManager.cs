@@ -21,7 +21,9 @@ namespace OpenQA.Selenium.Environment
         private EnvironmentManager()
         {
             string currentDirectory = this.CurrentDirectory;
-            string content = File.ReadAllText(Path.Combine(currentDirectory, "appconfig.json"));
+            string configFile = Path.Combine(currentDirectory, "appconfig.json");
+            
+            string content = File.ReadAllText(configFile);
             TestEnvironment env = JsonConvert.DeserializeObject<TestEnvironment>(content);
 
             string activeDriverConfig = TestContext.Parameters.Get("ActiveDriverConfig", env.ActiveDriverConfig);
@@ -39,21 +41,34 @@ namespace OpenQA.Selenium.Environment
 
             urlBuilder = new UrlBuilder(websiteConfig);
 
-            DirectoryInfo info = new DirectoryInfo(currentDirectory);
-            while (info != info.Root && string.Compare(info.Name, "buck-out", StringComparison.OrdinalIgnoreCase) != 0 && string.Compare(info.Name, "build", StringComparison.OrdinalIgnoreCase) != 0)
+            // When run using the `bazel test` command, the following environment
+            // variable will be set. If not set, we're running from a build system
+            // outside Bazel, and need to locate the directory containing the jar.
+            string projectRoot = System.Environment.GetEnvironmentVariable("TEST_SRCDIR");
+            if (string.IsNullOrEmpty(projectRoot))
             {
+                DirectoryInfo info = new DirectoryInfo(currentDirectory);
+                while (info != info.Root && string.Compare(info.Name, "bazel-out", StringComparison.OrdinalIgnoreCase) != 0 && string.Compare(info.Name, "buck-out", StringComparison.OrdinalIgnoreCase) != 0 && string.Compare(info.Name, "build", StringComparison.OrdinalIgnoreCase) != 0)
+                {
+                    info = info.Parent;
+                }
+
                 info = info.Parent;
+                projectRoot = Path.Combine(info.FullName, "bazel-bin");
+            }
+            else
+            {
+                projectRoot += "/selenium";
             }
 
-            info = info.Parent;
-            webServer = new TestWebServer(info.FullName);
+            webServer = new TestWebServer(projectRoot);
             bool autoStartRemoteServer = false;
             if (browser == Browser.Remote)
             {
                 autoStartRemoteServer = driverConfig.AutoStartRemoteServer;
             }
 
-            remoteServer = new RemoteSeleniumServer(info.FullName, autoStartRemoteServer);
+            remoteServer = new RemoteSeleniumServer(projectRoot, autoStartRemoteServer);
         }
 
         ~EnvironmentManager()
