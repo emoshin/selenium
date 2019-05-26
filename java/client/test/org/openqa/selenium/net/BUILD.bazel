@@ -13,6 +13,9 @@ java_test_suite(
     name = "SmallTests",
     size = "small",
     srcs = glob(["*Test.java"]),
+    tags = [
+        "no-sandbox",
+    ],
     deps = [
         ":net",
         "//java/client/src/org/openqa/selenium:core",

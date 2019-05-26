@@ -15,24 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package org.openqa.selenium.grid.commands;
+package org.openqa.selenium.devtools.network.model;
 
-import org.junit.Test;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.firefox.FirefoxOptions;
-import org.openqa.selenium.remote.RemoteWebDriver;
+/**
+ * Resource type as it was perceived by the rendering engine
+ */
+public enum ResourceType {
 
-public class StandaloneTest {
-
-  @Test
-  public void woohooAgain() {
-    WebDriver driver = RemoteWebDriver.builder()
-        .url("http://localhost:4444")
-        .oneOf(new FirefoxOptions())
-        .build();
-
-    driver.get("http://www.google.com");
-    driver.quit();
-  }
+  Document,
+  Stylesheet,
+  Image,
+  Media,
+  Font,
+  Script,
+  TextTrack,
+  XHR,
+  Fetch,
+  EventSource,
+  WebSocket,
+  Manifest,
+  SignedExchange,
+  Ping,
+  CSPViolationReport,
+  Other
 
 }
