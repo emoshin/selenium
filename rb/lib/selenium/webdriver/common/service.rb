@@ -37,19 +37,6 @@ module Selenium
         end
 
         def firefox(**opts)
-          binary_path = Firefox::Binary.path
-          args = opts.delete(:args)
-          case args
-          when Hash
-            args[:binary] ||= binary_path
-            opts[:args] = args
-          when Array
-            opts[:args] = ["--binary=#{binary_path}"]
-            opts[:args] += args
-          else
-            opts[:args] = ["--binary=#{binary_path}"]
-          end
-
           Firefox::Service.new(**opts)
         end
 
@@ -60,6 +47,14 @@ module Selenium
 
         def edge(**opts)
           Edge::Service.new(**opts)
+        end
+
+        def edge_chrome(**opts)
+          EdgeChrome::Service.new(**opts)
+        end
+
+        def edge_html(**opts)
+          EdgeHtml::Service.new(**opts)
         end
 
         def safari(**opts)

@@ -37,23 +37,23 @@ import org.openqa.selenium.remote.http.HttpClient;
 import org.openqa.selenium.remote.http.HttpMethod;
 import org.openqa.selenium.remote.http.HttpRequest;
 import org.openqa.selenium.remote.http.HttpResponse;
-import org.seleniumhq.jetty9.http.HttpVersion;
-import org.seleniumhq.jetty9.http.MimeTypes;
-import org.seleniumhq.jetty9.server.Connector;
-import org.seleniumhq.jetty9.server.HttpConfiguration;
-import org.seleniumhq.jetty9.server.HttpConnectionFactory;
-import org.seleniumhq.jetty9.server.SecureRequestCustomizer;
-import org.seleniumhq.jetty9.server.Server;
-import org.seleniumhq.jetty9.server.ServerConnector;
-import org.seleniumhq.jetty9.server.SslConnectionFactory;
-import org.seleniumhq.jetty9.server.handler.AllowSymLinkAliasChecker;
-import org.seleniumhq.jetty9.server.handler.ContextHandler.ApproveAliases;
-import org.seleniumhq.jetty9.server.handler.ContextHandlerCollection;
-import org.seleniumhq.jetty9.server.handler.HandlerList;
-import org.seleniumhq.jetty9.server.handler.ResourceHandler;
-import org.seleniumhq.jetty9.servlet.ServletContextHandler;
-import org.seleniumhq.jetty9.servlet.ServletHolder;
-import org.seleniumhq.jetty9.util.ssl.SslContextFactory;
+import org.eclipse.jetty.http.HttpVersion;
+import org.eclipse.jetty.http.MimeTypes;
+import org.eclipse.jetty.server.Connector;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.SecureRequestCustomizer;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.SslConnectionFactory;
+import org.eclipse.jetty.server.handler.AllowSymLinkAliasChecker;
+import org.eclipse.jetty.server.handler.ContextHandler.ApproveAliases;
+import org.eclipse.jetty.server.handler.ContextHandlerCollection;
+import org.eclipse.jetty.server.handler.HandlerList;
+import org.eclipse.jetty.server.handler.ResourceHandler;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -75,6 +75,7 @@ public class JettyAppServer implements AppServer {
   private static final int DEFAULT_HTTP_PORT = 2310;
   private static final int DEFAULT_HTTPS_PORT = 2410;
   private static final String DEFAULT_CONTEXT_PATH = "/common";
+  private static final String FILEZ_CONTEXT_PATH = "/filez";
   private static final String JS_SRC_CONTEXT_PATH = "/javascript";
   private static final String TEMP_SRC_CONTEXT_PATH = "/temp";
   private static final String CLOSURE_CONTEXT_PATH = "/third_party/closure/goog";
@@ -116,6 +117,12 @@ public class JettyAppServer implements AppServer {
     Path webSrc = locate("common/src/web");
     ServletContextHandler defaultContext = addResourceHandler(
         DEFAULT_CONTEXT_PATH, webSrc);
+
+    // Only non-null when running with bazel test.
+    Path runfiles = InProject.findRunfilesRoot();
+    if (runfiles != null) {
+      addResourceHandler(FILEZ_CONTEXT_PATH, runfiles);
+    }
 
     addJsResourceHandler(JS_SRC_CONTEXT_PATH, "javascript");
     addJsResourceHandler(CLOSURE_CONTEXT_PATH, "third_party/closure/goog");
@@ -305,7 +312,7 @@ public class JettyAppServer implements AppServer {
       throw new RuntimeException(e);
     }
   }
-  
+
   protected ServletContextHandler addResourceHandler(String contextPath, Path resourceBase) {
     ServletContextHandler context = new ServletContextHandler();
 

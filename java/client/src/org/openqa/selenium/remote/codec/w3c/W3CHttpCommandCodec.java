@@ -33,6 +33,7 @@ import static org.openqa.selenium.remote.DriverCommand.FIND_ELEMENT;
 import static org.openqa.selenium.remote.DriverCommand.FIND_ELEMENTS;
 import static org.openqa.selenium.remote.DriverCommand.GET_ACTIVE_ELEMENT;
 import static org.openqa.selenium.remote.DriverCommand.GET_ALERT_TEXT;
+import static org.openqa.selenium.remote.DriverCommand.GET_AVAILABLE_LOG_TYPES;
 import static org.openqa.selenium.remote.DriverCommand.GET_CURRENT_WINDOW_HANDLE;
 import static org.openqa.selenium.remote.DriverCommand.GET_CURRENT_WINDOW_POSITION;
 import static org.openqa.selenium.remote.DriverCommand.GET_CURRENT_WINDOW_SIZE;
@@ -44,6 +45,7 @@ import static org.openqa.selenium.remote.DriverCommand.GET_ELEMENT_SIZE;
 import static org.openqa.selenium.remote.DriverCommand.GET_LOCAL_STORAGE_ITEM;
 import static org.openqa.selenium.remote.DriverCommand.GET_LOCAL_STORAGE_KEYS;
 import static org.openqa.selenium.remote.DriverCommand.GET_LOCAL_STORAGE_SIZE;
+import static org.openqa.selenium.remote.DriverCommand.GET_LOG;
 import static org.openqa.selenium.remote.DriverCommand.GET_PAGE_SOURCE;
 import static org.openqa.selenium.remote.DriverCommand.GET_SESSION_STORAGE_ITEM;
 import static org.openqa.selenium.remote.DriverCommand.GET_SESSION_STORAGE_KEYS;
@@ -70,6 +72,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Resources;
 
+import org.openqa.selenium.InvalidSelectorException;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.interactions.Interaction;
 import org.openqa.selenium.interactions.KeyInput;
@@ -151,28 +154,37 @@ public class W3CHttpCommandCodec extends AbstractHttpCommandCodec {
     alias(MOUSE_DOWN, ACTIONS);
     alias(MOUSE_UP, ACTIONS);
     alias(MOVE_TO, ACTIONS);
+
+    defineCommand(GET_LOG, post("/session/:sessionId/se/log"));
+    defineCommand(GET_AVAILABLE_LOG_TYPES, get("/session/:sessionId/se/log/types"));
   }
 
   @Override
   protected Map<String, ?> amendParameters(String name, Map<String, ?> parameters) {
     switch (name) {
       case CLICK:
+        int button = parameters.containsKey("button") ?
+            ((Number) parameters.get("button")).intValue() :
+            PointerInput.MouseButton.LEFT.asArg();
         return ImmutableMap.<String, Object>builder()
             .put("actions", ImmutableList.of(
                 new Sequence(mouse, 0)
-                    .addAction(mouse.createPointerDown(PointerInput.MouseButton.LEFT.asArg()))
-                    .addAction(mouse.createPointerUp(PointerInput.MouseButton.LEFT.asArg()))
+                    .addAction(mouse.createPointerDown(button))
+                    .addAction(mouse.createPointerUp(button))
                     .toJson()))
             .build();
 
       case DOUBLE_CLICK:
+        button = parameters.containsKey("button") ?
+            ((Number) parameters.get("button")).intValue() :
+            PointerInput.MouseButton.LEFT.asArg();
         return ImmutableMap.<String, Object>builder()
             .put("actions", ImmutableList.of(
                 new Sequence(mouse, 0)
-                    .addAction(mouse.createPointerDown(PointerInput.MouseButton.LEFT.asArg()))
-                    .addAction(mouse.createPointerUp(PointerInput.MouseButton.LEFT.asArg()))
-                    .addAction(mouse.createPointerDown(PointerInput.MouseButton.LEFT.asArg()))
-                    .addAction(mouse.createPointerUp(PointerInput.MouseButton.LEFT.asArg()))
+                    .addAction(mouse.createPointerDown(button))
+                    .addAction(mouse.createPointerUp(button))
+                    .addAction(mouse.createPointerDown(button))
+                    .addAction(mouse.createPointerUp(button))
                     .toJson()))
             .build();
 
@@ -187,6 +199,9 @@ public class W3CHttpCommandCodec extends AbstractHttpCommandCodec {
 
         switch (using) {
           case "class name":
+            if (value.matches(".*\\s.*")) {
+              throw new InvalidSelectorException("Compound class names not permitted");
+            }
             toReturn.put("using", "css selector");
             toReturn.put("value", "." + cssEscape(value));
             break;
@@ -282,13 +297,19 @@ public class W3CHttpCommandCodec extends AbstractHttpCommandCodec {
         return executeAtom("isDisplayed.js", asElement(parameters.get("id")));
 
       case MOUSE_DOWN:
-        Interaction mouseDown = mouse.createPointerDown(PointerInput.MouseButton.LEFT.asArg());
+        button = parameters.containsKey("button") ?
+            ((Number) parameters.get("button")).intValue() :
+            PointerInput.MouseButton.LEFT.asArg();
+        Interaction mouseDown = mouse.createPointerDown(button);
         return ImmutableMap.<String, Object>builder()
             .put("actions", ImmutableList.of(new Sequence(mouse, 0).addAction(mouseDown).toJson()))
             .build();
 
       case MOUSE_UP:
-        Interaction mouseUp = mouse.createPointerUp(PointerInput.MouseButton.LEFT.asArg());
+        button = parameters.containsKey("button") ?
+            ((Number) parameters.get("button")).intValue() :
+            PointerInput.MouseButton.LEFT.asArg();
+        Interaction mouseUp = mouse.createPointerUp(button);
         return ImmutableMap.<String, Object>builder()
             .put("actions", ImmutableList.of(new Sequence(mouse, 0).addAction(mouseUp).toJson()))
             .build();

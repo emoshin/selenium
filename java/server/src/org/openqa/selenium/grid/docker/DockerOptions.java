@@ -17,12 +17,9 @@
 
 package org.openqa.selenium.grid.docker;
 
-import static java.util.logging.Level.WARNING;
-import static org.openqa.selenium.remote.http.HttpMethod.GET;
-
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-
+import io.opentracing.Tracer;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.docker.Docker;
 import org.openqa.selenium.docker.DockerException;
@@ -46,6 +43,9 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
+
+import static java.util.logging.Level.WARNING;
+import static org.openqa.selenium.remote.http.HttpMethod.GET;
 
 public class DockerOptions {
 
@@ -84,13 +84,13 @@ public class DockerOptions {
       }
 
       return true;
-    } catch (IOException e) {
+    } catch (UncheckedIOException e) {
       LOG.log(WARNING, "Unable to ping docker daemon. Docker disabled: " + e.getMessage());
       return false;
     }
   }
 
-  public void configure(HttpClient.Factory clientFactory, LocalNode.Builder node)
+  public void configure(Tracer tracer, HttpClient.Factory clientFactory, LocalNode.Builder node)
       throws IOException {
     if (!isEnabled(clientFactory)) {
       return;
@@ -122,7 +122,7 @@ public class DockerOptions {
           .orElseThrow(() -> new DockerException(
               String.format("Cannot find image matching: %s", name)));
       for (int i = 0; i < maxContainerCount; i++) {
-        node.add(caps, new DockerSessionFactory(clientFactory, docker, image, caps));
+        node.add(caps, new DockerSessionFactory(tracer, clientFactory, docker, image, caps));
       }
       LOG.info(String.format(
           "Mapping %s to docker image %s %d times",

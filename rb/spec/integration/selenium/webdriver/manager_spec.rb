@@ -22,7 +22,8 @@ require_relative 'spec_helper'
 module Selenium
   module WebDriver
     describe Manager do
-      describe 'logs', except: {browser: %i[chrome edge firefox ie safari safari_preview]} do
+      describe 'logs', except: [{browser: %i[edge edge_chrome firefox ie safari safari_preview]},
+                                {driver: :remote, browser: :chrome}] do
         it 'can fetch remote log types', only: {driver: :remote} do
           expect(driver.manage.logs.available_types).to include(:server, :browser, :driver)
         end
@@ -42,7 +43,7 @@ module Selenium
         end
 
         # Chrome - turned off by default
-        it 'can get the driver log', except: {browser: :chrome} do
+        it 'can get the driver log', except: {browser: %i[chrome edge_chrome]} do
           driver.navigate.to url_for('simpleTest.html')
 
           entries = driver.manage.logs.get(:driver)
@@ -91,7 +92,7 @@ module Selenium
         it 'should use DateTime for expires' do
           driver.navigate.to url_for('xhtmlTest.html')
 
-          expected = (Date.today + 1).to_datetime
+          expected = (Date.today + 2).to_datetime
           driver.manage.add_cookie name: 'foo',
                                    value: 'bar',
                                    expires: expected
@@ -107,7 +108,7 @@ module Selenium
 
         types = %i[tab window]
         types.each do |type|
-          it "should be able to open a new #{type}", only: {browser: %i[safari_preview firefox ie]} do
+          it "should be able to open a new #{type}", only: {browser: %i[safari_preview firefox ie chrome edge_chrome]} do
             before_window_handles = driver.window_handles.length
             driver.manage.new_window(type)
             expect(driver.window_handles.length).to eq(before_window_handles + 1)

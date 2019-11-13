@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Diagnostics;
 using System.Text;
+using NUnit.Framework;
 
 namespace OpenQA.Selenium.Environment
 {
@@ -11,14 +12,18 @@ namespace OpenQA.Selenium.Environment
     {
         private Process webserverProcess;
 
-        private string standaloneTestJar = @"java/client/test/org/openqa/selenium/environment/WebServer_deploy.jar";
+        private string standaloneTestJar = @"java/client/test/org/openqa/selenium/environment/appserver_deploy.jar";
         private string projectRootPath;
+        private bool captureWebServerOutput;
+        private bool hideCommandPrompt;
 
         private StringBuilder outputData = new StringBuilder();
 
-        public TestWebServer(string projectRoot)
+        public TestWebServer(string projectRoot, bool captureWebServerOutput, bool hideCommandPrompt)
         {
             projectRootPath = projectRoot;
+            this.captureWebServerOutput = captureWebServerOutput;
+            this.hideCommandPrompt = hideCommandPrompt;
         }
 
         public void Start()
@@ -32,7 +37,7 @@ namespace OpenQA.Selenium.Environment
                         string.Format(
                             "Test webserver jar at {0} didn't exist. Project root is {2}. Please build it using something like {1}.",
                             standaloneTestJar,
-                            "bazel build //java/client/test/org/openqa/selenium/environment:WebServer_deploy.jar",
+                            "bazel build //java/client/test/org/openqa/selenium/environment:appserver_deploy.jar",
                             projectRootPath));
                 }
 
@@ -43,7 +48,6 @@ namespace OpenQA.Selenium.Environment
                 }
 
                 List<string> javaSystemProperties = new List<string>();
-                javaSystemProperties.Add("org.openqa.selenium.environment.webserver.ignoreMissingJsRoots=true");
 
                 StringBuilder processArgsBuilder = new StringBuilder();
                 foreach (string systemProperty in javaSystemProperties)
@@ -67,6 +71,14 @@ namespace OpenQA.Selenium.Environment
                 webserverProcess.StartInfo.FileName = javaExecutableName;
                 webserverProcess.StartInfo.Arguments = processArgsBuilder.ToString();
                 webserverProcess.StartInfo.WorkingDirectory = projectRootPath;
+                webserverProcess.StartInfo.UseShellExecute = !(hideCommandPrompt || captureWebServerOutput);
+                webserverProcess.StartInfo.CreateNoWindow = hideCommandPrompt;
+                if (captureWebServerOutput)
+                {
+                    webserverProcess.StartInfo.RedirectStandardOutput = true;
+                    webserverProcess.StartInfo.RedirectStandardError = true;
+                }
+
                 webserverProcess.Start();
 
                 TimeSpan timeout = TimeSpan.FromSeconds(30);
@@ -91,7 +103,15 @@ namespace OpenQA.Selenium.Environment
 
                 if (!isRunning)
                 {
-                    string errorMessage = string.Format("Could not start the test web server in {0} seconds. Process Args: {1}", timeout.TotalSeconds, processArgsBuilder);
+                    string output = "'CaptureWebServerOutput' parameter is false. Web server output not captured";
+                    string error = "'CaptureWebServerOutput' parameter is false. Web server output not being captured.";
+                    if (captureWebServerOutput)
+                    {
+                        error = webserverProcess.StandardError.ReadToEnd();
+                        output = webserverProcess.StandardOutput.ReadToEnd();
+                    }
+
+                    string errorMessage = string.Format("Could not start the test web server in {0} seconds.\nWorking directory: {1}\nProcess Args: {2}\nstdout: {3}\nstderr: {4}", timeout.TotalSeconds, projectRootPath, processArgsBuilder, output, error);
                     throw new TimeoutException(errorMessage);
                 }
             }

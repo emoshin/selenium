@@ -31,40 +31,8 @@ module Selenium
         include DriverExtensions::HasWebStorage
         include DriverExtensions::TakesScreenshot
 
-        def initialize(opts = {})
-          opts[:desired_capabilities] = create_capabilities(opts)
-
-          opts[:url] ||= service_url(opts)
-
-          listener = opts.delete(:listener)
-          desired_capabilities = opts.delete(:desired_capabilities)
-
-          @bridge = Remote::Bridge.new(opts)
-          @bridge.extend Bridge
-          @bridge.create_session(desired_capabilities)
-
-          super(@bridge, listener: listener)
-        end
-
         def browser
           :firefox
-        end
-
-        def quit
-          super
-        ensure
-          @service&.stop
-        end
-
-        private
-
-        def create_capabilities(opts)
-          caps = opts.delete(:desired_capabilities) { Remote::Capabilities.firefox }
-          options = opts.delete(:options) { Options.new }
-          options = options.as_json
-          caps.merge!(options) unless options.empty?
-
-          caps
         end
       end # Driver
     end # Firefox

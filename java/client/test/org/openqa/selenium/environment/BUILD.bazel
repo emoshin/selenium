@@ -1,3 +1,6 @@
+load("@rules_jvm_external//:defs.bzl", "artifact")
+load("//java:defs.bzl", "java_test_suite")
+
 java_library(
     name = "environment",
     srcs = glob(
@@ -13,22 +16,29 @@ java_library(
     data = [
         "webserver/keystore",
         "//common/src/web",
+        "//javascript/atoms",
+        "//third_party/closure/goog",
+        "//third_party/js/selenium:webdriver_json",
+        "//third_party/js/selenium:webdriver_xpi",
+        "//third_party/js/sizzle",
     ],
     visibility = [
         "//java/client/test:__subpackages__",
         "//java/server/test:__subpackages__",
+        "//javascript:__subpackages__",
     ],
     deps = [
         "//java/client/src/org/openqa/selenium:core",
-        "//java/client/src/org/openqa/selenium/io",
         "//java/client/src/org/openqa/selenium/json",
-        "//java/client/src/org/openqa/selenium/net",
         "//java/client/src/org/openqa/selenium/remote",
         "//java/client/src/org/openqa/selenium/remote/http",
         "//java/client/test/org/openqa/selenium/build",
-        "//third_party/java/guava",
-        "//third_party/java/jetty",
-        "//third_party/java/servlet:javax.servlet-api",
+        artifact("com.google.guava:guava"),
+        artifact("org.eclipse.jetty:jetty-http"),
+        artifact("org.eclipse.jetty:jetty-server"),
+        artifact("org.eclipse.jetty:jetty-servlet"),
+        artifact("org.eclipse.jetty:jetty-util"),
+        artifact("javax.servlet:javax.servlet-api"),
     ],
 )
 
@@ -40,5 +50,28 @@ java_binary(
     ],
     runtime_deps = [
         ":environment",
+    ],
+)
+
+java_library(
+    name = "test-base",
+    srcs = ["webserver/AppServerTestBase.java"],
+    deps = [
+        ":environment",
+        "//java/client/src/org/openqa/selenium:core",
+        "//java/client/src/org/openqa/selenium/remote/http",
+        "//java/client/src/org/openqa/selenium/support",
+        "//java/client/test/org/openqa/selenium/testing/drivers",
+        artifact("junit:junit"),
+    ],
+)
+
+java_test_suite(
+    name = "MediumTests",
+    size = "medium",
+    srcs = glob(["**/*Test.java"]),
+    deps = [
+        ":environment",
+        ":test-base",
     ],
 )

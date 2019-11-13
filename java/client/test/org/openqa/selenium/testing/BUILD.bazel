@@ -1,4 +1,5 @@
-load("//java:rules.bzl", "java_test_suite")
+load("@rules_jvm_external//:defs.bzl", "artifact")
+load("//java:defs.bzl", "java_test_suite")
 
 java_library(
     name = "annotations",
@@ -29,8 +30,10 @@ java_library(
         "JUnit4TestBase.java",
         "NotificationRule.java",
         "Pages.java",
+        "Safely.java",
         "SeleniumTestRunner.java",
         "StaticResources.java",
+        "TearDownFixture.java",
         "TestIgnorance.java",
         "TestUtilities.java",
     ],
@@ -48,17 +51,18 @@ java_library(
         "//java/client/test/org/openqa/selenium/environment",
         "//java/client/test/org/openqa/selenium/testing/drivers",
         "//java/client/test/org/openqa/selenium/testing/drivers:browser",
-        "//third_party/java/assertj",
-        "//third_party/java/github:org.eclipse.egit.github.core",
-        "//third_party/java/guava",
-        "//third_party/java/junit",
-        "//third_party/java/okhttp3:okhttp",
-        "//third_party/java/selenium:htmlunit-driver",
+        artifact("com.google.guava:guava"),
+        artifact("com.squareup.okhttp3:okhttp"),
+        artifact("junit:junit"),
+        artifact("org.eclipse.mylyn.github:org.eclipse.egit.github.core"),
+        artifact("org.assertj:assertj-core"),
+        artifact("org.seleniumhq.selenium:htmlunit-driver"),
     ],
 )
 
 java_test_suite(
     name = "SmallTests",
+    size = "small",
     srcs = ["IgnoreComparatorUnitTest.java"],
     visibility = [
         "//java/client/test/org/openqa/selenium:__pkg__",
@@ -69,8 +73,8 @@ java_test_suite(
         "//java/client/test/org/openqa/selenium/testing:annotations",
         "//java/client/test/org/openqa/selenium/testing/drivers",
         "//java/client/test/org/openqa/selenium/testing/drivers:browser",
-        "//third_party/java/guava",
-        "//third_party/java/junit",
-        "//third_party/java/mockito:mockito-core",
+        artifact("com.google.guava:guava"),
+        artifact("junit:junit"),
+        artifact("org.mockito:mockito-core"),
     ],
 )

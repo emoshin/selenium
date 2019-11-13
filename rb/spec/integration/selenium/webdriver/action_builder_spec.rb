@@ -53,7 +53,7 @@ module Selenium
           expect(keylogger.text.strip).to match(/^(focus )?keydown keydown keypress keyup keydown keypress keyup keyup$/)
         end
 
-        it 'can press and release modifier keys', expect: {browser: :edge} do
+        it 'can press and release modifier keys', except: {browser: %i[edge safari_preview]} do
           driver.navigate.to url_for('javascriptPage.html')
 
           event_input = driver.find_element(id: 'theworks')
@@ -102,7 +102,7 @@ module Selenium
           expect(input.attribute(:value)).to eq('abcd')
         end
 
-        it 'can release pressed keys via release action' do
+        it 'can release pressed keys via release action', except: {browser: :safari_preview} do
           driver.navigate.to url_for('javascriptPage.html')
 
           event_input = driver.find_element(id: 'theworks')
@@ -143,7 +143,7 @@ module Selenium
           expect(text).to eq('Dropped!')
         end
 
-        it 'double clicks an element', except: {browser: %i[chrome safari safari_preview]} do
+        it 'double clicks an element', except: {browser: %i[safari safari_preview]} do
           driver.navigate.to url_for('javascriptPage.html')
           element = driver.find_element(id: 'doubleClickField')
 
@@ -159,7 +159,8 @@ module Selenium
           expect(element.attribute(:value)).to eq('ContextClicked')
         end
 
-        it 'can release pressed buttons via release action', except: {browser: :safari}, only: {browser: %i[edge firefox ie]} do
+        it 'can release pressed buttons via release action', except: {browser: :safari},
+                                                             only: {browser: %i[edge chrome edge_chrome firefox ie]} do
           driver.navigate.to url_for('javascriptPage.html')
 
           event_input = driver.find_element(id: 'clickField')

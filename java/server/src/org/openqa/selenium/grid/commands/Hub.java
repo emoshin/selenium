@@ -22,6 +22,7 @@ import com.google.auto.service.AutoService;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
 
+import org.openqa.selenium.BuildInfo;
 import org.openqa.selenium.cli.CliCommand;
 import org.openqa.selenium.events.EventBus;
 import org.openqa.selenium.grid.config.AnnotatedConfig;
@@ -33,25 +34,27 @@ import org.openqa.selenium.grid.distributor.Distributor;
 import org.openqa.selenium.grid.distributor.local.LocalDistributor;
 import org.openqa.selenium.grid.log.LoggingOptions;
 import org.openqa.selenium.grid.router.Router;
-import org.openqa.selenium.grid.server.BaseServer;
 import org.openqa.selenium.grid.server.BaseServerFlags;
 import org.openqa.selenium.grid.server.BaseServerOptions;
 import org.openqa.selenium.grid.server.EventBusConfig;
 import org.openqa.selenium.grid.server.EventBusFlags;
 import org.openqa.selenium.grid.server.HelpFlags;
 import org.openqa.selenium.grid.server.Server;
-import org.openqa.selenium.grid.server.W3CCommandHandler;
 import org.openqa.selenium.grid.sessionmap.SessionMap;
 import org.openqa.selenium.grid.sessionmap.local.LocalSessionMap;
 import org.openqa.selenium.grid.web.CombinedHandler;
 import org.openqa.selenium.grid.web.RoutableHttpClientFactory;
-import org.openqa.selenium.grid.web.Routes;
+import org.openqa.selenium.netty.server.NettyServer;
 import org.openqa.selenium.remote.http.HttpClient;
-import org.openqa.selenium.remote.tracing.DistributedTracer;
-import org.openqa.selenium.remote.tracing.GlobalDistributedTracer;
+
+import io.opentracing.Tracer;
+
+import java.util.logging.Logger;
 
 @AutoService(CliCommand.class)
 public class Hub implements CliCommand {
+
+  private static final Logger LOG = Logger.getLogger(Hub.class.getName());
 
   @Override
   public String getName() {
@@ -99,9 +102,7 @@ public class Hub implements CliCommand {
 
       LoggingOptions loggingOptions = new LoggingOptions(config);
       loggingOptions.configureLogging();
-
-      DistributedTracer tracer = loggingOptions.getTracer();
-      GlobalDistributedTracer.setInstance(tracer);
+      Tracer tracer = loggingOptions.getTracer();
 
       EventBusConfig events = new EventBusConfig(config);
       EventBus bus = events.getEventBus();
@@ -126,10 +127,11 @@ public class Hub implements CliCommand {
       handler.addHandler(distributor);
       Router router = new Router(tracer, clientFactory, sessions, distributor);
 
-      Server<?> server = new BaseServer<>(
-          serverOptions);
-      server.addRoute(Routes.matching(router).using(router).decorateWith(W3CCommandHandler::new));
+      Server<?> server = new NettyServer(serverOptions, router);
       server.start();
+
+      BuildInfo info = new BuildInfo();
+      LOG.info(String.format("Started Selenium hub %s (revision %s)", info.getReleaseLabel(), info.getBuildRevision()));
     };
   }
 }

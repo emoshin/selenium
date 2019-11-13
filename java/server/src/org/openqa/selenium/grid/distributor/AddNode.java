@@ -17,29 +17,29 @@
 
 package org.openqa.selenium.grid.distributor;
 
-import static org.openqa.selenium.remote.http.Contents.string;
-
+import io.opentracing.Tracer;
 import org.openqa.selenium.grid.data.NodeStatus;
 import org.openqa.selenium.grid.node.Node;
 import org.openqa.selenium.grid.node.remote.RemoteNode;
-import org.openqa.selenium.grid.web.CommandHandler;
 import org.openqa.selenium.json.Json;
 import org.openqa.selenium.remote.http.HttpClient;
+import org.openqa.selenium.remote.http.HttpHandler;
 import org.openqa.selenium.remote.http.HttpRequest;
 import org.openqa.selenium.remote.http.HttpResponse;
-import org.openqa.selenium.remote.tracing.DistributedTracer;
 
 import java.util.Objects;
 
-public class AddNode implements CommandHandler {
+import static org.openqa.selenium.remote.http.Contents.string;
 
-  private final DistributedTracer tracer;
+public class AddNode implements HttpHandler {
+
+  private final Tracer tracer;
   private final Distributor distributor;
   private final Json json;
   private final HttpClient.Factory httpFactory;
 
   public AddNode(
-      DistributedTracer tracer,
+      Tracer tracer,
       Distributor distributor,
       Json json,
       HttpClient.Factory httpFactory) {
@@ -50,7 +50,7 @@ public class AddNode implements CommandHandler {
   }
 
   @Override
-  public void execute(HttpRequest req, HttpResponse resp) {
+  public HttpResponse execute(HttpRequest req) {
     NodeStatus status = json.toType(string(req), NodeStatus.class);
 
     Node node = new RemoteNode(
@@ -61,5 +61,7 @@ public class AddNode implements CommandHandler {
         status.getStereotypes().keySet());
 
     distributor.add(node);
+
+    return new HttpResponse();
   }
 }

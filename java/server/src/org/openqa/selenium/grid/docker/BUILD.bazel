@@ -1,9 +1,14 @@
+load("@rules_jvm_external//:defs.bzl", "artifact")
+
 java_library(
     name = "docker",
     srcs = glob(["*.java"]),
+    visibility = [
+        "//java/server/src/org/openqa/selenium/grid/commands:__pkg__",
+        "//java/server/src/org/openqa/selenium/grid/node/httpd:__pkg__",
+    ],
     deps = [
         "//java/client/src/org/openqa/selenium/json",
-        "//java/client/src/org/openqa/selenium/net",
         "//java/client/src/org/openqa/selenium/remote",
         "//java/client/src/org/openqa/selenium/support",
         "//java/server/src/org/openqa/selenium/docker",
@@ -11,11 +16,7 @@ java_library(
         "//java/server/src/org/openqa/selenium/grid/data",
         "//java/server/src/org/openqa/selenium/grid/node",
         "//java/server/src/org/openqa/selenium/grid/node/local",
-        "//third_party/java/beust:jcommander",
-        "//third_party/java/guava",
+        artifact("com.beust:jcommander"),
+        artifact("com.google.guava:guava"),
     ],
-    visibility = [
-        "//java/server/src/org/openqa/selenium/grid/commands:__pkg__",
-        "//java/server/src/org/openqa/selenium/grid/node/httpd:__pkg__",
-    ]
 )

@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assume.assumeTrue;
 import static org.openqa.selenium.testing.drivers.Browser.ALL;
 import static org.openqa.selenium.testing.drivers.Browser.CHROME;
-import static org.openqa.selenium.testing.drivers.Browser.FIREFOX;
+import static org.openqa.selenium.testing.drivers.Browser.CHROMIUMEDGE;
 import static org.openqa.selenium.testing.drivers.Browser.IE;
 import static org.openqa.selenium.testing.drivers.Browser.MARIONETTE;
 import static org.openqa.selenium.testing.drivers.Browser.SAFARI;
@@ -196,9 +196,10 @@ public class CookieImplementationTest extends JUnit4TestBase {
 
   @SwitchToTopAfterTest
   @Test
-  @Ignore(CHROME)
+  @NotYetImplemented(value = CHROME, reason = "https://bugs.chromium.org/p/chromedriver/issues/detail?id=3153")
+  @NotYetImplemented(value = CHROMIUMEDGE, reason = "https://bugs.chromium.org/p/chromedriver/issues/detail?id=3153")
   @Ignore(SAFARI)
-  @NotYetImplemented(MARIONETTE)
+  @NotYetImplemented(value = MARIONETTE, reason = "https://github.com/mozilla/geckodriver/issues/1104")
   public void testGetCookiesInAFrame() {
     driver.get(domainHelper.getUrlForFirstValidHostname("/common/animals"));
     Cookie cookie1 = new Cookie.Builder("fish", "cod").path("/common/animals").build();
@@ -408,6 +409,7 @@ public class CookieImplementationTest extends JUnit4TestBase {
 
   @Test
   @Ignore(SAFARI)
+  @NotYetImplemented(CHROME)
   public void canHandleHttpOnlyCookie() {
     Cookie addedCookie =
       new Cookie.Builder("fish", "cod")
@@ -470,11 +472,7 @@ public class CookieImplementationTest extends JUnit4TestBase {
   }
 
   @Test
-  @Ignore(CHROME)
-  @Ignore(FIREFOX)
-  @Ignore(IE)
-  @Ignore(SAFARI)
-  @NotYetImplemented(MARIONETTE)
+  @Ignore(value = ALL, reason = "Non W3C conformant")
   public void testShouldDeleteOneOfTheCookiesWithTheSameName() {
     driver.get(domainHelper.getUrlForFirstValidHostname("/common/animals"));
     Cookie cookie1 = new Cookie.Builder("fish", "cod")

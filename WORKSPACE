@@ -1,13 +1,34 @@
-workspace(name = "selenium")
+workspace(
+    name = "selenium",
+    managed_directories = {
+        # Share the node_modules directory between Bazel and other tooling
+        "@npm": ["node_modules"],
+    },
+)
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
+    name = "rules_jvm_external",
+    sha256 = "1bbf2e48d07686707dd85357e9a94da775e1dbd7c464272b3664283c9c716d26",
+    strip_prefix = "rules_jvm_external-2.10",
+    url = "https://github.com/bazelbuild/rules_jvm_external/archive/2.10.zip",
+)
+
+load("//java:maven_deps.bzl", "selenium_java_deps")
+
+selenium_java_deps()
+
+load("@maven//:defs.bzl", "pinned_maven_install")
+
+pinned_maven_install()
+
+http_archive(
     name = "io_bazel_rules_closure",
-    sha256 = "bc7b6edd8684953b851300ef7fa122f4e6e9ed52f509a13724e49ffddb9a14eb",
-    strip_prefix = "rules_closure-d1110778a2e94bcdac5d5d00044dcb6cd07f1d51",
+    sha256 = "2e95ba060acd74f3662547a38814ffff60317be047b7168d25498aea52f3e732",
+    strip_prefix = "rules_closure-b3d4ec3879620edcadd3422b161cebb37c59b6c5",
     urls = [
-        "https://github.com/bazelbuild/rules_closure/archive/d1110778a2e94bcdac5d5d00044dcb6cd07f1d51.tar.gz",
+        "https://github.com/bazelbuild/rules_closure/archive/b3d4ec3879620edcadd3422b161cebb37c59b6c5.tar.gz",
     ],
 )
 
@@ -16,93 +37,26 @@ load("@io_bazel_rules_closure//closure:defs.bzl", "closure_repositories")
 closure_repositories()
 
 http_archive(
-    name = "io_bazel_rules_dotnet",
-    sha256 = "6a7083f9839819c7ad5928198258b0f0873cc6aafc7f2db6507f6d1b66f0b91b",
-    strip_prefix = "rules_dotnet-a1b161565ccd4bdb0a0ad3eb662d2b7c61a78100",
+    name = "d2l_rules_csharp",
+    sha256 = "0e688b0f9279855bef3e98657af44c29ac281c510e21919a03ceb69a910ebdf4",
+    strip_prefix = "rules_csharp-77997bbb79ba4294b1d88ae6f44211df8eb4075e",
     urls = [
-        "https://github.com/bazelbuild/rules_dotnet/archive/a1b161565ccd4bdb0a0ad3eb662d2b7c61a78100.tar.gz",
-    ]
+        "https://github.com/Brightspace/rules_csharp/archive/77997bbb79ba4294b1d88ae6f44211df8eb4075e.tar.gz",
+    ],
 )
 
-load("@io_bazel_rules_dotnet//dotnet:defs.bzl",
-     "dotnet_register_toolchains",
-     "net_register_sdk",
-     "core_register_sdk",
-     "mono_register_sdk",
-     "dotnet_repositories",
-     "dotnet_nuget_new",
-     "nuget_package",
-     "DOTNET_NET_FRAMEWORKS",
-     "DOTNET_CORE_FRAMEWORKS")
+load("//dotnet:workspace.bzl", "selenium_register_dotnet")
 
-dotnet_register_toolchains()
-dotnet_repositories()
-
-mono_register_sdk()
-
-[net_register_sdk(
-    framework
-) for framework in DOTNET_NET_FRAMEWORKS]
-
-[core_register_sdk(
-    framework
-) for framework in DOTNET_CORE_FRAMEWORKS]
-
-# Default core_sdk
-core_register_sdk("v2.1.502", name = "core_sdk")
-
-# Default net_sdk
-net_register_sdk("net472", name = "net_sdk")
-
-dotnet_nuget_new(
-   name = "json.net",
-   package = "newtonsoft.json",
-   version = "12.0.2",
-   build_file = "//third_party/dotnet/nuget/packages:newtonsoft.json.bzl"
-)
-
-dotnet_nuget_new(
-   name = "moq",
-   package = "moq",
-   version = "4.10.1",
-   build_file = "//third_party/dotnet/nuget/packages:moq.bzl"
-)
-
-dotnet_nuget_new(
-   name = "benderproxy",
-   package = "benderproxy",
-   version = "1.0.0",
-   build_file = "//third_party/dotnet/nuget/packages:benderproxy.bzl"
-)
-
-dotnet_nuget_new(
-    name = "castle.core",
-    package = "castle.core",
-    version = "4.3.1",
-    build_file = "//third_party/dotnet/nuget/packages:castle.core.bzl"
-)
-
-dotnet_nuget_new(
-    name = "system.threading.tasks.extensions",
-    package = "system.threading.tasks.extensions",
-    version = "4.5.1",
-    build_file = "//third_party/dotnet/nuget/packages:system.threading.tasks.extensions.bzl"
-)
-
-dotnet_nuget_new(
-   name = "nunit",
-   package = "nunit",
-   version = "3.11.0",
-   build_file = "//third_party/dotnet/nuget/packages:nunit.bzl"
-)
+selenium_register_dotnet()
 
 http_archive(
     name = "build_bazel_rules_nodejs",
-    sha256 = "4c702ffeeab2d24dd4101601b6d27cf582d2e0d4cdc3abefddd4834664669b6b",
-    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/0.28.0/rules_nodejs-0.28.0.tar.gz"],
+    sha256 = "da72ea53fa1cb8ab5ef7781ba06b97259b7d579a431ce480476266bc81bdf21d",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/0.36.2/rules_nodejs-0.36.2.tar.gz"],
 )
 
 load("@build_bazel_rules_nodejs//:defs.bzl", "npm_install")
+
 npm_install(
     name = "npm",
     package_json = "//:package.json",
@@ -110,4 +64,24 @@ npm_install(
 )
 
 load("@npm//:install_bazel_dependencies.bzl", "install_bazel_dependencies")
+
 install_bazel_dependencies()
+
+http_archive(
+    name = "rules_python",
+    sha256 = "b556b165ea1311bf68b6b0bc86d95e5cfca2e839aa6fbd232781bb3930f3d392",
+    strip_prefix = "rules_python-e0644961d74b9bbb8a975a01bebb045abfd5d1bd",
+    urls = [
+        "https://github.com/bazelbuild/rules_python/archive/e0644961d74b9bbb8a975a01bebb045abfd5d1bd.zip",
+    ],
+)
+
+# This call should always be present.
+load("@rules_python//python:repositories.bzl", "py_repositories")
+
+py_repositories()
+
+# This one is only needed if you're using the packaging rules.
+load("@rules_python//python:pip.bzl", "pip_repositories")
+
+pip_repositories()

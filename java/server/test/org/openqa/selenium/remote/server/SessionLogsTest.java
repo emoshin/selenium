@@ -21,6 +21,7 @@ import static org.junit.Assert.assertTrue;
 import static org.openqa.selenium.json.Json.MAP_TYPE;
 import static org.openqa.selenium.remote.http.Contents.string;
 import static org.openqa.selenium.testing.drivers.Browser.CHROME;
+import static org.openqa.selenium.testing.drivers.Browser.CHROMIUMEDGE;
 import static org.openqa.selenium.testing.drivers.Browser.HTMLUNIT;
 import static org.openqa.selenium.testing.drivers.Browser.IE;
 import static org.openqa.selenium.testing.drivers.Browser.SAFARI;
@@ -53,6 +54,7 @@ import java.util.Set;
 @Ignore(HTMLUNIT)
 @Ignore(IE)
 @Ignore(CHROME)
+@Ignore(CHROMIUMEDGE)
 @Ignore(SAFARI)
 public class SessionLogsTest extends JUnit4TestBase {
 
@@ -63,7 +65,7 @@ public class SessionLogsTest extends JUnit4TestBase {
   public static void startUpServer() throws IOException {
     server = new OutOfProcessSeleniumServer();
     server.enableLogCapture();
-    server.start();
+    server.start("standalone");
   }
 
   @AfterClass

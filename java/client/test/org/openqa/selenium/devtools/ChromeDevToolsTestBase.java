@@ -17,33 +17,20 @@
 
 package org.openqa.selenium.devtools;
 
-import org.junit.After;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import org.junit.Before;
 import org.openqa.selenium.chrome.ChromeDriver;
 
-/**
- * Created by aohana
- */
+
 public abstract class ChromeDevToolsTestBase extends DevToolsTestBase {
 
-  ChromeDriver chromeDriver;
+  protected ChromeDriver chromeDriver;
 
   @Before
-  public void setUp() {
+  public void setUpChrome() {
+    assumeThat(driver).isInstanceOf(ChromeDriver.class);
 
-    super.setUp();
-
-    chromeDriver = new ChromeDriver();
-    devTools = chromeDriver.getDevTools();
-
-    devTools.createSession();
+    chromeDriver = (ChromeDriver) driver;
   }
-
-
-  @After
-  public void terminateSession() {
-    devTools.close();
-    chromeDriver.quit();
-  }
-
 }

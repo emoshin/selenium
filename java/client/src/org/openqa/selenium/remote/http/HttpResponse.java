@@ -18,12 +18,17 @@
 package org.openqa.selenium.remote.http;
 
 import static java.net.HttpURLConnection.HTTP_OK;
+import static org.openqa.selenium.remote.http.Contents.string;
 
 public class HttpResponse extends HttpMessage<HttpResponse> {
 
   public static final String HTTP_TARGET_HOST = "http.target.host";
 
   private int status = HTTP_OK;
+
+  public boolean isSuccessful() {
+    return getStatus() >= HTTP_OK && getStatus() < 300;
+  }
 
   public int getStatus() {
     return status;
@@ -51,5 +56,10 @@ public class HttpResponse extends HttpMessage<HttpResponse> {
    */
   public String getTargetHost() {
     return (String) getAttribute(HTTP_TARGET_HOST);
+  }
+
+  @Override
+  public String toString() {
+    return String.format("%s: %s", getStatus(), string(this));
   }
 }

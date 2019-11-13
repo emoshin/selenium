@@ -1,6 +1,22 @@
-load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_library")
+load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_deps", "closure_js_library")
+load("//javascript:defs.bzl", "closure_test_suite")
 
 package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "atoms",
+    srcs = glob([
+        "**/*.html",
+        "**/*.jpg",
+        "**/*.js",
+        "**/*.png",
+        "**/*.svg",
+    ]),
+    visibility = [
+        "//java/client/test/org/openqa/selenium/environment:__pkg__",
+        "//javascript/node/selenium-webdriver:__pkg__",
+    ],
+)
 
 closure_js_library(
     name = "action",
@@ -9,6 +25,12 @@ closure_js_library(
         "JSC_IMPLICITLY_NULLABLE_JSDOC",
         "JSC_STRICT_INEXISTENT_PROPERTY",
         "JSC_UNKNOWN_EXPR_TYPE",
+    ],
+    visibility = [
+        "//javascript/atoms/fragments:__pkg__",
+        "//javascript/selenium-atoms:__pkg__",
+        "//javascript/webdriver/atoms:__pkg__",
+        "//javascript/webdriver/atoms/inject:__pkg__",
     ],
     deps = [
         ":bot",
@@ -78,6 +100,7 @@ closure_js_library(
     name = "dom",
     srcs = ["dom.js"],
     suppress = [
+        "JSC_DEPRECATED_PROP",
         "JSC_IMPLICITLY_NULLABLE_JSDOC",
         "JSC_STRICT_INEXISTENT_PROPERTY",
         "JSC_UNKNOWN_EXPR_TYPE",
@@ -127,8 +150,33 @@ closure_js_library(
 )
 
 closure_js_library(
+    name = "frame",
+    srcs = ["frame.js"],
+    suppress = [
+        "JSC_IMPLICITLY_NULLABLE_JSDOC",
+        "JSC_NULLABLE_RETURN_WITH_NAME",
+        "JSC_UNKNOWN_EXPR_TYPE",
+    ],
+    visibility = [
+        "//javascript/webdriver/atoms/inject:__pkg__",
+    ],
+    deps = [
+        ":bot",
+        ":dom",
+        ":errors",
+        ":locators",
+        "@io_bazel_rules_closure//closure/library",
+    ],
+)
+
+closure_js_library(
     name = "html5",
     srcs = glob(["html5/*.js"]),
+    suppress = [
+        "JSC_IMPLICITLY_NULLABLE_JSDOC",
+        "JSC_NULLABLE_RETURN_WITH_NAME",
+        "JSC_UNKNOWN_EXPR_TYPE",
+    ],
     deps = [
         ":bot",
         ":errors",
@@ -145,6 +193,11 @@ closure_js_library(
         "JSC_IMPLICITLY_NULLABLE_JSDOC",
         "JSC_STRICT_INEXISTENT_PROPERTY",
         "JSC_UNKNOWN_EXPR_TYPE",
+    ],
+    visibility = [
+        "//javascript/atoms/fragments:__pkg__",
+        "//javascript/selenium-atoms:__pkg__",
+        "//javascript/webdriver/atoms/inject:__pkg__",
     ],
     deps = [
         ":bot",
@@ -171,6 +224,7 @@ closure_js_library(
     ),
     suppress = [
         "JSC_IMPLICITLY_NULLABLE_JSDOC",
+        "JSC_LATE_PROVIDE_ERROR",
         "JSC_NULLABLE_RETURN_WITH_NAME",
         "JSC_UNKNOWN_EXPR_TYPE",
     ],
@@ -223,5 +277,50 @@ closure_js_library(
         ":errors",
         "//third_party/js/wgxpath",
         "@io_bazel_rules_closure//closure/library",
+    ],
+)
+
+closure_js_library(
+    name = "test_util",
+    testonly = 1,
+    srcs = ["test/test_util.js"],
+    deps = [
+        ":useragent",
+        "@io_bazel_rules_closure//closure/library",
+    ],
+)
+
+closure_js_deps(
+    name = "deps",
+    testonly = 1,
+    visibility = [
+        "//javascript:__pkg__",
+        "//javascript/webdriver:__pkg__",
+    ],
+    deps = [
+        ":action",
+        ":bot",
+        ":color",
+        ":devices",
+        ":dom",
+        ":domcore",
+        ":errors",
+        ":events",
+        ":html5",
+        ":inject",
+        ":json",
+        ":locators",
+        ":test_util",
+        ":useragent",
+        ":window",
+        ":xpath",
+    ],
+)
+
+closure_test_suite(
+    name = "test",
+    data = [
+        ":atoms",
+        ":deps",
     ],
 )
