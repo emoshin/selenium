@@ -28,9 +28,6 @@ import com.github.javaparser.ast.stmt.BlockStmt;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
 import org.openqa.selenium.Beta;
-import org.openqa.selenium.devtools.Command;
-import org.openqa.selenium.devtools.ConverterFunctions;
-import org.openqa.selenium.devtools.Event;
 import org.openqa.selenium.json.Json;
 import org.openqa.selenium.json.JsonInput;
 
@@ -67,7 +64,7 @@ public class CdpClientGenerator {
     Model model = new Model("org.openqa.selenium.devtools");
     Stream.of("browser_protocol.json", "js_protocol.json").forEach(protoFile -> {
       try {
-        String text = Files.readString(source.resolve(protoFile));
+        String text = String.join("\n", Files.readAllLines(source.resolve(protoFile)));
         Map<String, Object> json = new Json().toType(text, Json.MAP_TYPE);
         model.parse(json);
       } catch (IOException e) {
@@ -84,7 +81,7 @@ public class CdpClientGenerator {
       Files.walkFileTree(target, new SimpleFileVisitor<Path>() {
         @Override
         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-          String relative = target.relativize(dir).toString();
+          String relative = target.relativize(dir).toString().replace('\\', '/');
           JarEntry entry = new JarEntry(devtoolsDir + relative + "/");
           jos.putNextEntry(entry);
           jos.closeEntry();
@@ -94,7 +91,7 @@ public class CdpClientGenerator {
 
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-          String relative = target.relativize(file).toString();
+          String relative = target.relativize(file).toString().replace('\\', '/');
           JarEntry entry = new JarEntry(devtoolsDir + relative);
           jos.putNextEntry(entry);
           try (InputStream is = Files.newInputStream(file)) {
@@ -307,7 +304,7 @@ public class CdpClientGenerator {
       ensureFileDoesNotExists(commandFile);
 
       try {
-        Files.writeString(commandFile, unit.toString());
+        Files.write(commandFile, unit.toString().getBytes());
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
@@ -371,7 +368,7 @@ public class CdpClientGenerator {
         ensureFileDoesNotExists(eventFile);
 
         try {
-          Files.writeString(eventFile, unit.toString());
+          Files.write(eventFile, unit.toString().getBytes());
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
@@ -450,7 +447,7 @@ public class CdpClientGenerator {
       ensureFileDoesNotExists(typeFile);
 
       try {
-        Files.writeString(typeFile, unit.toString());
+        Files.write(typeFile, unit.toString().getBytes());
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }

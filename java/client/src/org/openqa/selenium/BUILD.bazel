@@ -1,5 +1,5 @@
 load("//java:version.bzl", "SE_VERSION")
-load("//java:defs.bzl", "java_dist_zip", "java_export")
+load("//java:defs.bzl", "java_dist_zip", "java_export", "javadoc")
 
 filegroup(
     name = "template-pom",
@@ -17,14 +17,19 @@ java_export(
         "logging/**/*.java",
         "mobile/*.java",
         "net/*.java",
+        "virtualauthenticator/*.java",
     ]),
+    hides = [
+        "org.openqa.selenium.interactions.internal",
+        "org.openqa.selenium.internal",
+    ],
     maven_coordinates = "org.seleniumhq.selenium:selenium-api:%s" % SE_VERSION,
     pom_template = ":template-pom",
-    visibility = ["//visibility:public"],
     deps = [
         # Nothing from third party
         ":manifest",
     ],
+    visibility = ["//visibility:public"],
 )
 
 java_export(
@@ -43,6 +48,13 @@ java_export(
         "//java/client/src/org/openqa/selenium/remote",
         "//java/client/src/org/openqa/selenium/safari",
         "//java/client/src/org/openqa/selenium/support",
+    ],
+)
+
+javadoc(
+    name = "core-docs",
+    deps = [
+        ":core",
     ],
 )
 
