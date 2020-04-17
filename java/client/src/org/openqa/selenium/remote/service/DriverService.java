@@ -197,17 +197,12 @@ public class DriverService {
       process.executeAsync();
 
       CompletableFuture<Boolean> serverStarted = CompletableFuture.supplyAsync(() -> {
-        try {
-          waitUntilAvailable();
-        } catch (MalformedURLException e) {
-          throw new WebDriverException("Driver server URL is malformed.", e);
-        }
+        waitUntilAvailable();
         return true;
       });
 
       CompletableFuture<Boolean> processFinished = CompletableFuture.supplyAsync(() -> {
         process.waitFor(getTimeout().toMillis());
-        process = null;
         return false;
       });
 
@@ -215,9 +210,13 @@ public class DriverService {
         boolean started = (Boolean) CompletableFuture.anyOf(serverStarted, processFinished)
             .get(getTimeout().toMillis() * 2, TimeUnit.MILLISECONDS);
         if (!started) {
+          process = null;
           throw new WebDriverException("Driver server process died prematurely.");
         }
-      } catch (InterruptedException | ExecutionException | TimeoutException e) {
+      } catch (ExecutionException | TimeoutException e) {
+        throw new WebDriverException("Timed out waiting for driver server to start.", e);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
         throw new WebDriverException("Timed out waiting for driver server to start.", e);
       }
     } finally {
@@ -229,10 +228,12 @@ public class DriverService {
     return timeout;
   }
 
-  protected void waitUntilAvailable() throws MalformedURLException {
+  protected void waitUntilAvailable() {
     try {
       URL status = new URL(url.toString() + "/status");
       new UrlChecker().waitUntilAvailable(getTimeout().toMillis(), TimeUnit.MILLISECONDS, status);
+    } catch (MalformedURLException e) {
+      throw new WebDriverException("Driver server status URL is malformed.", e);
     } catch (UrlChecker.TimeoutException e) {
       throw new WebDriverException("Timed out waiting for driver server to start.", e);
     }

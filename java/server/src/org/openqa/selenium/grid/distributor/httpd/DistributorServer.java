@@ -43,7 +43,6 @@ import org.openqa.selenium.remote.http.HttpClient;
 import java.util.Set;
 import java.util.logging.Logger;
 
-
 @AutoService(CliCommand.class)
 public class DistributorServer extends TemplateGridCommand {
 
@@ -78,7 +77,7 @@ public class DistributorServer extends TemplateGridCommand {
   }
 
   @Override
-  protected void execute(Config config) throws Exception {
+  protected void execute(Config config) {
     LoggingOptions loggingOptions = new LoggingOptions(config);
     Tracer tracer = loggingOptions.getTracer();
 

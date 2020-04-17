@@ -1,6 +1,12 @@
 ## v.next
 
 * Rolling back native support for Opera Browser
+* Added new ieOptions capabilities:
+    - fileUploadDialogTimeout
+    - setEdgePath
+    - setEdgeChromium
+    - setScrollBehavior
+    - Supports adding multiple command-line switches using options.addArguments()
 
 ### API Changes
 

@@ -97,6 +97,9 @@ class GridStatusHandler implements HttpHandler {
       try {
         status = EXECUTOR_SERVICE.submit(new TracedCallable<>(tracer, span, distributor::getStatus)).get(2, SECONDS);
       } catch (ExecutionException | InterruptedException | TimeoutException e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
+        }
         return new HttpResponse().setContent(utf8String(json.toJson(
           ImmutableMap.of("value", ImmutableMap.of(
             "ready", false,
@@ -126,11 +129,9 @@ class GridStatusHandler implements HttpHandler {
                 HttpTracing.inject(tracer, span, nodeStatusReq);
                 HttpResponse res = client.execute(nodeStatusReq);
 
-                if (res.getStatus() == 200) {
-                  toReturn.complete(json.toType(string(res), MAP_TYPE));
-                } else {
-                  toReturn.complete(defaultResponse);
-                }
+                toReturn.complete(res.getStatus() == 200
+                                  ? json.toType(string(res), MAP_TYPE)
+                                  : defaultResponse);
               } catch (IOException e) {
                 e.printStackTrace();
                 toReturn.complete(defaultResponse);
@@ -159,7 +160,10 @@ class GridStatusHandler implements HttpHandler {
         .map(summary -> {
           try {
             return summary.get();
-          } catch (ExecutionException | InterruptedException e) {
+          } catch (ExecutionException e) {
+            throw wrap(e);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw wrap(e);
           }
         })
