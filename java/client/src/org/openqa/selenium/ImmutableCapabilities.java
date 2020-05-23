@@ -17,10 +17,10 @@
 
 package org.openqa.selenium;
 
+import org.openqa.selenium.internal.Require;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Objects;
 
 public class ImmutableCapabilities extends AbstractCapabilities implements Serializable {
 
@@ -74,15 +74,13 @@ public class ImmutableCapabilities extends AbstractCapabilities implements Seria
 
   public ImmutableCapabilities(Map<?, ?> capabilities) {
     capabilities.forEach((key, value) -> {
-      if (!(key instanceof String)) {
-        throw new IllegalArgumentException("Key values must be strings");
-      }
+      Require.argument("Key", key).instanceOf(String.class);
       setCapability(String.valueOf(key), value);
     });
   }
 
   public static ImmutableCapabilities copyOf(Capabilities capabilities) {
-    Objects.requireNonNull(capabilities, "Capabilities must be set");
+    Require.nonNull("Capabilities", capabilities);
 
     if (capabilities instanceof ImmutableCapabilities) {
       return (ImmutableCapabilities) capabilities;

@@ -60,6 +60,7 @@ import org.openqa.selenium.internal.FindsByLinkText;
 import org.openqa.selenium.internal.FindsByName;
 import org.openqa.selenium.internal.FindsByTagName;
 import org.openqa.selenium.internal.FindsByXPath;
+import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.logging.LocalLogs;
 import org.openqa.selenium.logging.LogType;
 import org.openqa.selenium.logging.LoggingHandler;
@@ -81,7 +82,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -553,7 +553,7 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
   }
 
   protected void setElementConverter(JsonToWebElementConverter converter) {
-    this.converter = Objects.requireNonNull(converter, "Element converter must not be null");
+    this.converter = Require.nonNull("Element converter", converter);
   }
 
   protected JsonToWebElementConverter getElementConverter() {
@@ -771,7 +771,7 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
                     .isSecure(rawCookie.containsKey("secure") && (Boolean) rawCookie.get("secure"))
                     .isHttpOnly(
                         rawCookie.containsKey("httpOnly") && (Boolean) rawCookie.get("httpOnly"))
-                    .sameSite((String) rawCookie.get("samesite"));
+                    .sameSite((String) rawCookie.get("sameSite"));
 
             Number expiryNum = (Number) rawCookie.get("expiry");
             builder.expiresOn(expiryNum == null ? null : new Date(SECONDS.toMillis(expiryNum.longValue())));
@@ -1072,7 +1072,7 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
     private final String id;
 
     public RemoteVirtualAuthenticator(final String id) {
-      this.id = Objects.requireNonNull(id);
+      this.id = Require.nonNull("Id", id);
     }
 
     @Override
