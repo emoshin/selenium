@@ -28,6 +28,7 @@ import org.openqa.selenium.grid.config.MapConfig;
 import org.openqa.selenium.grid.config.Role;
 import org.openqa.selenium.grid.distributor.Distributor;
 import org.openqa.selenium.grid.distributor.config.DistributorOptions;
+import org.openqa.selenium.grid.distributor.remote.RemoteDistributor;
 import org.openqa.selenium.grid.graphql.GraphqlHandler;
 import org.openqa.selenium.grid.log.LoggingOptions;
 import org.openqa.selenium.grid.router.ProxyCdpIntoGrid;
@@ -39,16 +40,22 @@ import org.openqa.selenium.grid.sessionmap.SessionMap;
 import org.openqa.selenium.grid.sessionmap.config.SessionMapOptions;
 import org.openqa.selenium.netty.server.NettyServer;
 import org.openqa.selenium.remote.http.HttpClient;
+import org.openqa.selenium.remote.http.HttpResponse;
 import org.openqa.selenium.remote.http.Route;
 import org.openqa.selenium.remote.tracing.Tracer;
 
+import java.net.URI;
+import java.net.URL;
 import java.util.Collections;
 import java.util.Set;
 import java.util.logging.Logger;
 
+import static java.net.HttpURLConnection.HTTP_NO_CONTENT;
 import static org.openqa.selenium.grid.config.StandardGridRoles.DISTRIBUTOR_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.HTTPD_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.SESSION_MAP_ROLE;
+import static org.openqa.selenium.net.Urls.fromUri;
+import static org.openqa.selenium.remote.http.Route.get;
 
 @AutoService(CliCommand.class)
 public class RouterServer extends TemplateGridCommand {
@@ -99,13 +106,19 @@ public class RouterServer extends TemplateGridCommand {
     BaseServerOptions serverOptions = new BaseServerOptions(config);
 
     DistributorOptions distributorOptions = new DistributorOptions(config);
-    Distributor distributor = distributorOptions.getDistributor(tracer, clientFactory);
+    URL distributorUrl = fromUri(distributorOptions.getDistributorUri());
+    Distributor distributor = new RemoteDistributor(
+        tracer,
+        clientFactory,
+        distributorUrl
+    );
 
-    GraphqlHandler graphqlHandler = new GraphqlHandler(distributor, serverOptions.getExternalUri().toString());
+    GraphqlHandler graphqlHandler = new GraphqlHandler(distributor, serverOptions.getExternalUri());
 
     Route handler = Route.combine(
       new Router(tracer, clientFactory, sessions, distributor),
-      Route.post("/graphql").to(() -> graphqlHandler));
+      Route.post("/graphql").to(() -> graphqlHandler),
+      get("/readyz").to(() -> req -> new HttpResponse().setStatus(HTTP_NO_CONTENT)));
 
     Server<?> server = new NettyServer(serverOptions, handler, new ProxyCdpIntoGrid(clientFactory, sessions));
     server.start();
