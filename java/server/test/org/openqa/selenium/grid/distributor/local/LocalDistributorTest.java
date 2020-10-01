@@ -26,6 +26,7 @@ import org.openqa.selenium.events.EventBus;
 import org.openqa.selenium.events.local.GuavaEventBus;
 import org.openqa.selenium.grid.data.CreateSessionResponse;
 import org.openqa.selenium.grid.data.DistributorStatus;
+import org.openqa.selenium.grid.data.NodeStatus;
 import org.openqa.selenium.grid.data.Session;
 import org.openqa.selenium.grid.distributor.Distributor;
 import org.openqa.selenium.grid.node.Node;
@@ -46,25 +47,19 @@ import org.openqa.selenium.remote.tracing.Tracer;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.openqa.selenium.grid.data.Availability.DRAINING;
 import static org.openqa.selenium.remote.http.HttpMethod.GET;
 
 public class LocalDistributorTest {
@@ -73,7 +68,7 @@ public class LocalDistributorTest {
   private EventBus bus;
   private HttpClient.Factory clientFactory;
   private URI uri;
-  private Node local;
+  private Node localNode;
 
   @Before
   public void setUp() throws URISyntaxException {
@@ -83,7 +78,7 @@ public class LocalDistributorTest {
 
     Capabilities caps = new ImmutableCapabilities("browserName", "cheese");
     uri = new URI("http://localhost:1234");
-    local = LocalNode.builder(tracer, bus, uri, uri, null)
+    localNode = LocalNode.builder(tracer, bus, uri, uri, null)
         .add(caps, new TestSessionFactory((id, c) -> new Handler(c)))
         .maximumConcurrentSessions(2)
         .build();
@@ -92,118 +87,46 @@ public class LocalDistributorTest {
   @Test
   public void testAddNodeToDistributor() {
     Distributor distributor = new LocalDistributor(tracer, bus, clientFactory, new LocalSessionMap(tracer, bus), null);
-    distributor.add(local);
+    distributor.add(localNode);
     DistributorStatus status = distributor.getStatus();
 
     //Check the size
-    final Set<DistributorStatus.NodeSummary> nodes = status.getNodes();
+    final Set<NodeStatus> nodes = status.getNodes();
     assertThat(nodes.size()).isEqualTo(1);
 
     //Check a couple attributes
-    final DistributorStatus.NodeSummary distributorNode = nodes.iterator().next();
-    assertThat(distributorNode.getNodeId()).isEqualByComparingTo(local.getId());
+    NodeStatus distributorNode = nodes.iterator().next();
+    assertThat(distributorNode.getId()).isEqualByComparingTo(localNode.getId());
     assertThat(distributorNode.getUri()).isEqualTo(uri);
   }
 
   @Test
   public void testRemoveNodeFromDistributor() {
     Distributor distributor = new LocalDistributor(tracer, bus, clientFactory, new LocalSessionMap(tracer, bus), null);
-    distributor.add(local);
+    distributor.add(localNode);
 
     //Check the size
     DistributorStatus statusBefore = distributor.getStatus();
-    final Set<DistributorStatus.NodeSummary> nodesBefore = statusBefore.getNodes();
+    final Set<NodeStatus> nodesBefore = statusBefore.getNodes();
     assertThat(nodesBefore.size()).isEqualTo(1);
 
     //Recheck the status--should be zero
-    distributor.remove(local.getId());
+    distributor.remove(localNode.getId());
     DistributorStatus statusAfter = distributor.getStatus();
-    final Set<DistributorStatus.NodeSummary> nodesAfter = statusAfter.getNodes();
+    final Set<NodeStatus> nodesAfter = statusAfter.getNodes();
     assertThat(nodesAfter.size()).isEqualTo(0);
   }
 
   @Test
   public void testAddSameNodeTwice() {
     Distributor distributor = new LocalDistributor(tracer, bus, clientFactory, new LocalSessionMap(tracer, bus), null);
-    distributor.add(local);
-    distributor.add(local);
+    distributor.add(localNode);
+    distributor.add(localNode);
     DistributorStatus status = distributor.getStatus();
 
     //Should only be one node after dupe check
-    final Set<DistributorStatus.NodeSummary> nodes = status.getNodes();
+    final Set<NodeStatus> nodes = status.getNodes();
     assertThat(nodes.size()).isEqualTo(1);
-  }
-
-  @Test
-  public void testGetPrioritizedHostBuckets() {
-    //build a bunch of hosts, using real values
-    Set<Host> hosts = new HashSet<>();
-
-    //Create 1 node that has edge, chrome, and firefox
-    hosts.add(createHost("edge", "firefox", "chrome"));
-
-    //Create 5 nodes that only have Chrome and Firefox
-    IntStream.range(0, 4).forEach(ignore ->
-      hosts.add(createHost("chrome", "firefox"))
-    );
-
-    //We're not doing anything with this distributor, it's just here so we can call the method we're testing
-    LocalDistributor distributor = new LocalDistributor(tracer, bus, clientFactory, new LocalSessionMap(tracer, bus), null);
-
-    //When you prioritize for Edge, you should only have 1 possibility
-    Stream<Host> edgeHosts = hosts.stream().filter(host -> host.hasCapacity(new ImmutableCapabilities("browserName", "edge")));
-    final Stream<Host> edgeStream = distributor.getPrioritizedHostStream(edgeHosts, new ImmutableCapabilities("browserName", "edge"))
-        .filter(host -> host.hasCapacity(new ImmutableCapabilities("browserName", "edge")));
-    assertThat(edgeStream.count()).isEqualTo(1);
-
-    //When you prioritize for Chrome or Firefox, the Edge node will be removed, leaving 4
-    Stream<Host> chromeHosts = hosts.stream().filter(host -> host.hasCapacity(new ImmutableCapabilities("browserName", "chrome")));
-    final Stream<Host> chromeStream = distributor.getPrioritizedHostStream(chromeHosts, new ImmutableCapabilities("browserName", "chrome"))
-        .filter(host -> host.hasCapacity(new ImmutableCapabilities("browserName", "chrome")));
-    assertThat(chromeStream.count()).isEqualTo(4);
-
-    Stream<Host> firefoxHosts = hosts.stream().filter(host -> host.hasCapacity(new ImmutableCapabilities("browserName", "firefox")));
-    final Stream<Host> firefoxStream = distributor.getPrioritizedHostStream(firefoxHosts, new ImmutableCapabilities("browserName", "firefox"))
-        .filter(host -> host.hasCapacity(new ImmutableCapabilities("browserName", "firefox")));
-    assertThat(firefoxStream.count()).isEqualTo(4);
-  }
-
-  @Test
-  public void testAllBucketsSameSize() {
-    Map<String, Set<Host>> hostBuckets = buildBuckets(5, 5, 5, 5, 5, 5, 5, 5, 5, 5);
-
-    LocalDistributor distributor = new LocalDistributor(tracer, bus, clientFactory, new LocalSessionMap(tracer, bus), null);
-    assertThat(distributor.allBucketsSameSize(hostBuckets)).isTrue();
-  }
-
-  @Test
-  public void testAllBucketsNotSameSize() {
-    Map<String, Set<Host>> hostBuckets = buildBuckets(3, 5, 8 );
-
-    LocalDistributor distributor = new LocalDistributor(tracer, bus, clientFactory, new LocalSessionMap(tracer, bus), null);
-    assertThat(distributor.allBucketsSameSize(hostBuckets)).isFalse();
-  }
-
-  @Test
-  public void testOneBucketStillConsideredSameSize() {
-    Map<String, Set<Host>> hostBuckets = buildBuckets(3 );
-
-    LocalDistributor distributor = new LocalDistributor(tracer, bus, clientFactory, new LocalSessionMap(tracer, bus), null);
-    assertThat(distributor.allBucketsSameSize(hostBuckets)).isTrue();
-  }
-
-  @Test
-  public void testAllBucketsNotSameSizeProveNotUsingAverage() {
-    //Make sure the numbers don't just average out to the same size
-    Map<String, Set<Host>> hostBuckets = buildBuckets(4, 5, 6 );
-
-    LocalDistributor distributor = new LocalDistributor(
-      tracer,
-      bus,
-      clientFactory,
-      new LocalSessionMap(tracer, bus),
-      null);
-    assertThat(distributor.allBucketsSameSize(hostBuckets)).isFalse();
   }
 
   @Test
@@ -220,7 +143,7 @@ public class LocalDistributorTest {
 
     class VerifyingHandler extends Session implements HttpHandler {
       private VerifyingHandler(SessionId id, Capabilities capabilities) {
-        super(id, uri, capabilities);
+        super(id, uri, new ImmutableCapabilities(), capabilities, Instant.now());
       }
 
       @Override
@@ -233,18 +156,17 @@ public class LocalDistributorTest {
 
     // Only use one node.
     Node node = LocalNode.builder(tracer, bus, uri, uri, null)
-      .add(caps, new TestSessionFactory(VerifyingHandler::new))
-      .add(caps, new TestSessionFactory(VerifyingHandler::new))
-      .add(caps, new TestSessionFactory(VerifyingHandler::new))
-      .build();
+        .add(caps, new TestSessionFactory(VerifyingHandler::new))
+        .add(caps, new TestSessionFactory(VerifyingHandler::new))
+        .add(caps, new TestSessionFactory(VerifyingHandler::new))
+        .build();
     distributor.add(node);
 
     HttpRequest req = new HttpRequest(HttpMethod.POST, "/session")
-      .setContent(Contents.asJson(ImmutableMap.of(
-        "capabilities", ImmutableMap.of(
-          "alwaysMatch", ImmutableMap.of(
-            "browserName", "cheese")))));
-
+        .setContent(Contents.asJson(ImmutableMap.of(
+            "capabilities", ImmutableMap.of(
+                "alwaysMatch", ImmutableMap.of(
+                    "browserName", "cheese")))));
 
     List<Callable<SessionId>> callables = new ArrayList<>();
     for (int i = 0; i < 3; i++) {
@@ -266,48 +188,52 @@ public class LocalDistributorTest {
     }
   }
 
-  //Build a few Host Buckets of different sizes
-  private Map<String, Set<Host>> buildBuckets(int...sizes) {
-    Map<String, Set<Host>> hostBuckets = new HashMap<>();
-    //The fact that it's re-using the same node doesn't matter--we're calculating "sameness"
-    // based purely on the number of hosts in the Set
 
-    IntStream.of(sizes).forEach(count -> {
-      Set<Host> hostSet = new HashSet<>();
-      for (int i=0; i<count; i++) {
-        hostSet.add(createHost(UUID.randomUUID().toString()));
-      }
-      hostBuckets.put(UUID.randomUUID().toString(), hostSet);
-    });
-    return hostBuckets;
+  @Test
+  public void testDrainNodeFromDistributor() {
+    Distributor distributor = new LocalDistributor(
+      tracer,
+      bus,
+      clientFactory,
+      new LocalSessionMap(tracer, bus),
+      null);
+    distributor.add(localNode);
+    assertThat(localNode.isDraining()).isFalse();
+
+    //Check the size - there should be one node
+    DistributorStatus statusBefore = distributor.getStatus();
+    Set<NodeStatus> nodesBefore = statusBefore.getNodes();
+    assertThat(nodesBefore.size()).isEqualTo(1);
+    NodeStatus nodeBefore = nodesBefore.iterator().next();
+    assertThat(nodeBefore.getAvailability()).isNotEqualTo(DRAINING);
+
+    distributor.drain(localNode.getId());
+    assertThat(localNode.isDraining()).isTrue();
+
+    //Recheck the status - there should still be no node, it is removed
+    DistributorStatus statusAfter = distributor.getStatus();
+    Set<NodeStatus> nodesAfter = statusAfter.getNodes();
+    assertThat(nodesAfter.size()).isEqualTo(0);
   }
 
-  //Create a single host with the given browserName
-  private Host createHost(String...browsers) {
-    URI uri = createUri();
-    LocalNode.Builder nodeBuilder = LocalNode.builder(tracer, bus, uri, uri, null);
-    nodeBuilder.maximumConcurrentSessions(browsers.length);
+  @Test
+  public void testDrainNodeFromNode() {
+    assertThat(localNode.isDraining()).isFalse();
 
-    Arrays.stream(browsers).forEach(browser -> {
-      Capabilities caps = new ImmutableCapabilities("browserName", browser);
-        nodeBuilder.add(caps, new TestSessionFactory((id, c) -> new Handler(c)));
-    });
+    Distributor
+        distributor =
+        new LocalDistributor(tracer, bus, clientFactory, new LocalSessionMap(tracer, bus), null);
+    distributor.add(localNode);
 
-    Node myNode = nodeBuilder.build();
-    return new Host(bus, myNode);
+    localNode.drain();
+    assertThat(localNode.isDraining()).isTrue();
   }
 
-  private URI createUri() {
-    try {
-      return new URI("http://localhost:" + new Random().nextInt());
-    } catch (URISyntaxException e) {
-      throw new RuntimeException(e);
-    }
-  }
 
   private class Handler extends Session implements HttpHandler {
+
     private Handler(Capabilities capabilities) {
-      super(new SessionId(UUID.randomUUID()), uri, capabilities);
+      super(new SessionId(UUID.randomUUID()), uri, new ImmutableCapabilities(), capabilities, Instant.now());
     }
 
     @Override

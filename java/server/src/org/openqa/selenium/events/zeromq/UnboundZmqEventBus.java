@@ -18,9 +18,12 @@
 package org.openqa.selenium.events.zeromq;
 
 import com.google.common.collect.EvictingQueue;
+import net.jodah.failsafe.Failsafe;
+import net.jodah.failsafe.RetryPolicy;
 import org.openqa.selenium.events.Event;
 import org.openqa.selenium.events.EventBus;
-import org.openqa.selenium.events.Type;
+import org.openqa.selenium.events.EventListener;
+import org.openqa.selenium.events.EventName;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.json.Json;
 import org.zeromq.SocketType;
@@ -32,6 +35,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +56,7 @@ class UnboundZmqEventBus implements EventBus {
   private static final Logger LOG = Logger.getLogger(EventBus.class.getName());
   private static final Json JSON = new Json();
   private final ExecutorService executor;
-  private final Map<Type, List<Consumer<Event>>> listeners = new ConcurrentHashMap<>();
+  private final Map<EventName, List<Consumer<Event>>> listeners = new ConcurrentHashMap<>();
   private final Queue<UUID> recentMessages = EvictingQueue.create(128);
 
   private ZMQ.Socket pub;
@@ -66,17 +70,29 @@ class UnboundZmqEventBus implements EventBus {
       return thread;
     });
 
-    LOG.info(String.format("Connecting to %s and %s", publishConnection, subscribeConnection));
+    String connectionMessage = String.format("Connecting to %s and %s", publishConnection, subscribeConnection);
+    LOG.info(connectionMessage);
 
-    sub = context.createSocket(SocketType.SUB);
-    sub.setIPv6(isSubAddressIPv6(publishConnection));
-    sub.connect(publishConnection);
-    sub.subscribe(new byte[0]);
+    RetryPolicy<Object> retryPolicy = new RetryPolicy<>()
+      .withMaxAttempts(5)
+      .withDelay(5, 10, ChronoUnit.SECONDS)
+      .onFailedAttempt(e -> LOG.log(Level.WARNING, String.format("%s failed", connectionMessage)))
+      .onRetry(e -> LOG.log(Level.WARNING, String.format("Failure #%s. Retrying.", e.getAttemptCount())))
+      .onRetriesExceeded(e -> LOG.log(Level.WARNING, "Connection aborted."));
 
-    pub = context.createSocket(SocketType.PUB);
-    pub.setIPv6(isSubAddressIPv6(subscribeConnection));
-    pub.connect(subscribeConnection);
+    Failsafe.with(retryPolicy).run(
+      () -> {
+        sub = context.createSocket(SocketType.SUB);
+        sub.setIPv6(isSubAddressIPv6(publishConnection));
+        sub.connect(publishConnection);
+        sub.subscribe(new byte[0]);
 
+        pub = context.createSocket(SocketType.PUB);
+        pub.setIPv6(isSubAddressIPv6(subscribeConnection));
+        pub.connect(subscribeConnection);
+      }
+    );
+    // Connections are already established
     ZMQ.Poller poller = context.createPoller(1);
     poller.register(sub, ZMQ.Poller.POLLIN);
 
@@ -94,19 +110,19 @@ class UnboundZmqEventBus implements EventBus {
           if (poller.pollin(0)) {
             ZMQ.Socket socket = poller.getSocket(0);
 
-            Type type = new Type(new String(socket.recv(ZMQ.DONTWAIT), UTF_8));
+            EventName eventName = new EventName(new String(socket.recv(ZMQ.DONTWAIT), UTF_8));
             UUID id = UUID.fromString(new String(socket.recv(ZMQ.DONTWAIT), UTF_8));
             String data = new String(socket.recv(ZMQ.DONTWAIT), UTF_8);
 
             Object converted = JSON.toType(data, Object.class);
-            Event event = new Event(id, type, converted);
+            Event event = new Event(id, eventName, converted);
 
             if (recentMessages.contains(id)) {
               continue;
             }
             recentMessages.add(id);
 
-            List<Consumer<Event>> typeListeners = listeners.get(type);
+            List<Consumer<Event>> typeListeners = listeners.get(eventName);
             if (typeListeners == null) {
               continue;
             }
@@ -143,7 +159,13 @@ class UnboundZmqEventBus implements EventBus {
 
   private boolean isSubAddressIPv6(String connection) {
     try {
-      return InetAddress.getByName(new URI(connection).getHost()) instanceof Inet6Address;
+      URI uri = new URI(connection);
+
+      if ("inproc".equals(uri.getScheme())) {
+        return false;
+      }
+
+      return InetAddress.getByName(uri.getHost()) instanceof Inet6Address;
     } catch (UnknownHostException | URISyntaxException e) {
       LOG.log(Level.WARNING, String.format("Could not determine if the address %s is IPv6 or IPv4", connection), e);
     }
@@ -151,12 +173,11 @@ class UnboundZmqEventBus implements EventBus {
   }
 
   @Override
-  public void addListener(Type type, Consumer<Event> onType) {
-    Require.nonNull("Event type", type);
-    Require.nonNull("Event listener", onType);
+  public void addListener(EventListener<?> listener) {
+    Require.nonNull("Listener", listener);
 
-    List<Consumer<Event>> typeListeners = listeners.computeIfAbsent(type, t -> new LinkedList<>());
-    typeListeners.add(onType);
+    List<Consumer<Event>> typeListeners = listeners.computeIfAbsent(listener.getEventName(), t -> new LinkedList<>());
+    typeListeners.add(listener);
   }
 
   @Override

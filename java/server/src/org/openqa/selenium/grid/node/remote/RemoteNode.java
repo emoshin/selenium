@@ -21,12 +21,14 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.NoSuchSessionException;
-import org.openqa.selenium.grid.component.HealthCheck;
 import org.openqa.selenium.grid.data.CreateSessionRequest;
 import org.openqa.selenium.grid.data.CreateSessionResponse;
+import org.openqa.selenium.grid.data.NodeId;
 import org.openqa.selenium.grid.data.NodeStatus;
 import org.openqa.selenium.grid.data.Session;
+import org.openqa.selenium.grid.node.HealthCheck;
 import org.openqa.selenium.grid.node.Node;
+import org.openqa.selenium.grid.security.Secret;
 import org.openqa.selenium.grid.web.Values;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.json.Json;
@@ -48,12 +50,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
+import static java.net.HttpURLConnection.HTTP_OK;
+import static org.openqa.selenium.grid.data.Availability.DOWN;
+import static org.openqa.selenium.grid.data.Availability.DRAINING;
+import static org.openqa.selenium.grid.data.Availability.UP;
 import static org.openqa.selenium.net.Urls.fromUri;
 import static org.openqa.selenium.remote.http.Contents.asJson;
 import static org.openqa.selenium.remote.http.Contents.reader;
-import static org.openqa.selenium.remote.http.Contents.string;
 import static org.openqa.selenium.remote.http.HttpMethod.DELETE;
 import static org.openqa.selenium.remote.http.HttpMethod.GET;
 import static org.openqa.selenium.remote.http.HttpMethod.POST;
@@ -69,10 +73,11 @@ public class RemoteNode extends Node {
   public RemoteNode(
       Tracer tracer,
       HttpClient.Factory clientFactory,
-      UUID id,
+      NodeId id,
       URI externalUri,
+      Secret registrationSecret,
       Collection<Capabilities> capabilities) {
-    super(tracer, id, externalUri);
+    super(tracer, id, externalUri, registrationSecret);
     this.externalUri = Require.nonNull("External URI", externalUri);
     this.capabilities = ImmutableSet.copyOf(capabilities);
 
@@ -200,6 +205,18 @@ public class RemoteNode extends Node {
     return healthCheck;
   }
 
+  @Override
+  public void drain() {
+    HttpRequest req = new HttpRequest(POST, "/se/grid/node/drain");
+    HttpTracing.inject(tracer, tracer.getCurrentContext(), req);
+
+    HttpResponse res = client.execute(req);
+
+    if(res.getStatus() == HTTP_OK) {
+      draining = true;
+    }
+  }
+
   private Map<String, Object> toJson() {
     return ImmutableMap.of(
         "id", getId(),
@@ -210,23 +227,25 @@ public class RemoteNode extends Node {
   private class RemoteCheck implements HealthCheck {
     @Override
     public Result check() {
-      HttpRequest req = new HttpRequest(GET, "/status");
-
       try {
-        HttpResponse res = client.execute(req);
+        NodeStatus status = getStatus();
 
-        if (res.getStatus() == 200) {
-          return new Result(true, externalUri + " is ok");
+        switch (status.getAvailability()) {
+          case DOWN:
+            return new Result(DOWN, externalUri + " is down");
+
+          case DRAINING:
+            return new Result(DRAINING, externalUri + " is draining");
+
+          case UP:
+            return new Result(UP, externalUri + " is ok");
+
+          default:
+            throw new IllegalStateException("Unknown node availability: " + status.getAvailability());
         }
-        return new Result(
-            false,
-            String.format(
-                "An error occurred reading the status of %s: %s",
-                externalUri,
-                string(res)));
       } catch (RuntimeException e) {
         return new Result(
-            false,
+            DOWN,
             "Unable to determine node status: " + e.getMessage());
       }
     }

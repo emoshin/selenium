@@ -42,6 +42,7 @@ import org.openqa.selenium.remote.tracing.Tracer;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -67,7 +68,7 @@ public class LocalNodeTest {
     URI uri = new URI("http://localhost:1234");
     Capabilities stereotype = new ImmutableCapabilities("cheese", "brie");
     node = LocalNode.builder(tracer, bus, uri, uri, null)
-        .add(stereotype, new TestSessionFactory((id, caps) -> new Session(id, uri, caps)))
+        .add(stereotype, new TestSessionFactory((id, caps) -> new Session(id, uri, stereotype, caps, Instant.now())))
         .build();
 
     CreateSessionResponse sessionResponse = node.newSession(
@@ -109,26 +110,49 @@ public class LocalNodeTest {
   }
 
   @Test
+  public void cannotAcceptNewSessionsWhileDraining() {
+    node.drain();
+    assertThat(node.isDraining()).isTrue();
+    node.stop(session.getId()); //stop the default session
+
+    Capabilities stereotype = new ImmutableCapabilities("cheese", "brie");
+    Optional<CreateSessionResponse> sessionResponse = node.newSession(
+        new CreateSessionRequest(
+            ImmutableSet.of(W3C),
+            stereotype,
+            ImmutableMap.of()));
+    assertThat(sessionResponse).isEmpty();
+  }
+
+  @Test
   public void canReturnStatusInfo() {
     NodeStatus status = node.getStatus();
-    assertThat(status.getCurrentSessions().stream()
-        .filter(s -> s.getSessionId().equals(session.getId()))).isNotEmpty();
+    assertThat(status.getSlots().stream()
+      .filter(slot -> slot.getSession().isPresent())
+      .map(slot -> slot.getSession().get())
+      .filter(s -> s.getId().equals(session.getId()))).isNotEmpty();
 
     node.stop(session.getId());
     status = node.getStatus();
-    assertThat(status.getCurrentSessions().stream()
-        .filter(s -> s.getSessionId().equals(session.getId()))).isEmpty();
+    assertThat(status.getSlots().stream()
+      .filter(slot -> slot.getSession().isPresent())
+      .map(slot -> slot.getSession().get())
+      .filter(s -> s.getId().equals(session.getId()))).isEmpty();
   }
 
   @Test
   public void nodeStatusInfoIsImmutable() {
     NodeStatus status = node.getStatus();
-    assertThat(status.getCurrentSessions().stream()
-        .filter(s -> s.getSessionId().equals(session.getId()))).isNotEmpty();
+    assertThat(status.getSlots().stream()
+      .filter(slot -> slot.getSession().isPresent())
+      .map(slot -> slot.getSession().get())
+      .filter(s -> s.getId().equals(session.getId()))).isNotEmpty();
 
     node.stop(session.getId());
-    assertThat(status.getCurrentSessions().stream()
-        .filter(s -> s.getSessionId().equals(session.getId()))).isNotEmpty();
+    assertThat(status.getSlots().stream()
+      .filter(slot -> slot.getSession().isPresent())
+      .map(slot -> slot.getSession().get())
+      .filter(s -> s.getId().equals(session.getId()))).isNotEmpty();
   }
 
   @Test
@@ -140,7 +164,7 @@ public class LocalNodeTest {
 
     class VerifyingHandler extends Session implements HttpHandler {
       private VerifyingHandler(SessionId id, Capabilities capabilities) {
-        super(id, uri, capabilities);
+        super(id, uri, new ImmutableCapabilities(), capabilities, Instant.now());
       }
 
       @Override
