@@ -15,24 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 
-from selenium.common.exceptions import WebDriverException
-from selenium.webdriver.common.html5.application_cache import ApplicationCache
-
-
-@pytest.mark.xfail_chrome
-@pytest.mark.xfail_chromiumedge
-@pytest.mark.xfail_firefox(raises=WebDriverException)
-@pytest.mark.xfail_remote
-@pytest.mark.xfail_safari
-def testWeCanGetTheStatusOfTheAppCache(driver, pages):
-    pages.load('html5Page')
-    driver.implicitly_wait(2)
-    app_cache = driver.application_cache
-
-    status = app_cache.status
-    while status == ApplicationCache.DOWNLOADING:
-        status = app_cache.status
-
-    assert ApplicationCache.UNCACHED == app_cache.status
+def pytest_generate_tests(metafunc):
+    if 'driver' in metafunc.fixturenames and metafunc.config.option.drivers:
+        metafunc.parametrize('driver', metafunc.config.option.drivers, indirect=True)

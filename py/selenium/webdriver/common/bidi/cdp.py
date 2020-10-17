@@ -1,33 +1,59 @@
-# Licensed to the Software Freedom Conservancy (SFC) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The SFC licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
+# The MIT License(MIT)
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# Copyright(c) 2018 Hyperion Gray
 #
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-from collections import defaultdict
-from contextlib import (contextmanager, asynccontextmanager)
-import contextvars
-import itertools
-import json
-import sys
-import typing
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files(the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+# This code comes from https://github.com/HyperionGray/trio-chrome-devtools-protocol/tree/master/trio_cdp
 
-import trio
 from trio_websocket import (
     ConnectionClosed as WsConnectionClosed,
     connect_websocket_url,
     open_websocket_url
 )
+import trio
+from collections import defaultdict
+from contextlib import (contextmanager, asynccontextmanager)
+from dataclasses import dataclass
+import contextvars
+import importlib
+import itertools
+import json
+import logging
+import sys
+import typing
+
+
+logger = logging.getLogger('trio_cdp')
+T = typing.TypeVar('T')
+MAX_WS_MESSAGE_SIZE = 2**24
+
+devtools = None
+version = None
+
+
+def import_devtools(ver):
+    global devtools
+    global version
+    version = ver
+    devtools = importlib.import_module("selenium.webdriver.common.devtools.v{}".format(version))
+
 
 _connection_context: contextvars.ContextVar = contextvars.ContextVar('connection_context')
 _session_context: contextvars.ContextVar = contextvars.ContextVar('session_context')
@@ -98,7 +124,6 @@ def set_global_session(session):
     _session_context = contextvars.ContextVar('_session_context', default=session)
 
 
-
 class BrowserError(Exception):
     ''' This exception is raised when the browser's response to a command
     indicates that an error occurred. '''
@@ -134,7 +159,15 @@ class InternalError(Exception):
     the integration with PyCDP. '''
 
 
-class CDPBase:
+@dataclass
+class CmEventProxy:
+    ''' A proxy object returned by :meth:`CdpBase.wait_for()``. After the
+    context manager executes, this proxy object will have a value set that
+    contains the returned event. '''
+    value: typing.Any = None
+
+
+class CdpBase:
 
     def __init__(self, ws, session_id, target_id):
         self.ws = ws
@@ -168,7 +201,6 @@ class CDPBase:
         if isinstance(response, Exception):
             raise response
         return response
-
 
     def listen(self, *event_types, buffer_size=10):
         ''' Return an async iterator that iterates over events matching the
@@ -216,7 +248,7 @@ class CDPBase:
             cmd, event = self.inflight_cmd.pop(cmd_id)
         except KeyError:
             logger.warning('Got a message with a command ID that does'
-                ' not exist: {}'.format(data))
+                           ' not exist: {}'.format(data))
             return
         if 'error' in data:
             # If the server reported an error, convert it to an exception and do
@@ -228,7 +260,7 @@ class CDPBase:
             try:
                 response = cmd.send(data['result'])
                 raise InternalError("The command's generator function "
-                    "did not exit when expected!")
+                                    "did not exit when expected!")
             except StopIteration as exit:
                 return_ = exit.value
             self.inflight_result[cmd_id] = return_
@@ -239,7 +271,8 @@ class CDPBase:
         Handle an event.
         :param dict data: event as a JSON dictionary
         '''
-        event = cdp.util.parse_json_event(data)
+        global devtools
+        event = devtools.util.parse_json_event(data)
         logger.debug('Received event: %s', event)
         to_remove = set()
         for sender in self.channels[type(event)]:
@@ -247,11 +280,75 @@ class CDPBase:
                 sender.send_nowait(event)
             except trio.WouldBlock:
                 logger.error('Unable to send event "%r" due to full channel %s',
-                    event, sender)
+                             event, sender)
             except trio.BrokenResourceError:
                 to_remove.add(sender)
         if to_remove:
             self.channels[type(event)] -= to_remove
+
+
+class CdpSession(CdpBase):
+    '''
+    Contains the state for a CDP session.
+    Generally you should not instantiate this object yourself; you should call
+    :meth:`CdpConnection.open_session`.
+    '''
+
+    def __init__(self, ws, session_id, target_id):
+        '''
+        Constructor.
+        :param trio_websocket.WebSocketConnection ws:
+        :param devtools.target.SessionID session_id:
+        :param devtools.target.TargetID target_id:
+        '''
+        super().__init__(ws, session_id, target_id)
+
+        self._dom_enable_count = 0
+        self._dom_enable_lock = trio.Lock()
+        self._page_enable_count = 0
+        self._page_enable_lock = trio.Lock()
+
+    @asynccontextmanager
+    async def dom_enable(self):
+        '''
+        A context manager that executes ``dom.enable()`` when it enters and then
+        calls ``dom.disable()``.
+        This keeps track of concurrent callers and only disables DOM events when
+        all callers have exited.
+        '''
+        global devtools
+        async with self._dom_enable_lock:
+            self._dom_enable_count += 1
+            if self._dom_enable_count == 1:
+                await self.execute(devtools.dom.enable())
+
+        yield
+
+        async with self._dom_enable_lock:
+            self._dom_enable_count -= 1
+            if self._dom_enable_count == 0:
+                await self.execute(devtools.dom.disable())
+
+    @asynccontextmanager
+    async def page_enable(self):
+        '''
+        A context manager that executes ``page.enable()`` when it enters and
+        then calls ``page.disable()`` when it exits.
+        This keeps track of concurrent callers and only disables page events
+        when all callers have exited.
+        '''
+        global devtools
+        async with self._page_enable_lock:
+            self._page_enable_count += 1
+            if self._page_enable_count == 1:
+                await self.execute(devtools.page.enable())
+
+        yield
+
+        async with self._page_enable_lock:
+            self._page_enable_count -= 1
+            if self._page_enable_count == 0:
+                await self.execute(devtools.page.disable())
 
 
 class CdpConnection(CdpBase, trio.abc.AsyncResource):
@@ -265,6 +362,7 @@ class CdpConnection(CdpBase, trio.abc.AsyncResource):
     You should generally call the :func:`open_cdp()` instead of
     instantiating this class directly.
     '''
+
     def __init__(self, ws):
         '''
         Constructor
@@ -285,7 +383,7 @@ class CdpConnection(CdpBase, trio.abc.AsyncResource):
         await self.ws.aclose()
 
     @asynccontextmanager
-    async def open_session(self, target_id: cdp.target.TargetID) -> \
+    async def open_session(self, target_id) -> \
             typing.AsyncIterator[CdpSession]:
         '''
         This context manager opens a session and enables the "simple" style of calling
@@ -297,11 +395,12 @@ class CdpConnection(CdpBase, trio.abc.AsyncResource):
         with session_context(session):
             yield session
 
-    async def connect_session(self, target_id: cdp.target.TargetID) -> 'CdpSession':
+    async def connect_session(self, target_id) -> 'CdpSession':
         '''
         Returns a new :class:`CdpSession` connected to the specified target.
         '''
-        session_id = await self.execute(cdp.target.attach_to_target(
+        global devtools
+        session_id = await self.execute(devtools.target.attach_to_target(
             target_id, True))
         session = CdpSession(self.ws, session_id, target_id)
         self.sessions[session_id] = session
@@ -312,6 +411,7 @@ class CdpConnection(CdpBase, trio.abc.AsyncResource):
         Runs in the background and handles incoming messages: dispatching
         responses to commands and events to listeners.
         '''
+        global devtools
         while True:
             try:
                 message = await self.ws.get_message()
@@ -331,76 +431,15 @@ class CdpConnection(CdpBase, trio.abc.AsyncResource):
                 })
             logger.debug('Received message %r', data)
             if 'sessionId' in data:
-                session_id = cdp.target.SessionID(data['sessionId'])
+                session_id = devtools.target.SessionID(data['sessionId'])
                 try:
                     session = self.sessions[session_id]
                 except KeyError:
                     raise BrowserError('Browser sent a message for an invalid '
-                        'session: {!r}'.format(session_id))
+                                       'session: {!r}'.format(session_id))
                 session._handle_data(data)
             else:
                 self._handle_data(data)
-
-
-class CdpSession(CdpBase):
-    '''
-    Contains the state for a CDP session.
-    Generally you should not instantiate this object yourself; you should call
-    :meth:`CdpConnection.open_session`.
-    '''
-    def __init__(self, ws, session_id, target_id):
-        '''
-        Constructor.
-        :param trio_websocket.WebSocketConnection ws:
-        :param cdp.target.SessionID session_id:
-        :param cdp.target.TargetID target_id:
-        '''
-        super().__init__(ws, session_id, target_id)
-
-        self._dom_enable_count = 0
-        self._dom_enable_lock = trio.Lock()
-        self._page_enable_count = 0
-        self._page_enable_lock = trio.Lock()
-
-    @asynccontextmanager
-    async def dom_enable(self):
-        '''
-        A context manager that executes ``dom.enable()`` when it enters and then
-        calls ``dom.disable()``.
-        This keeps track of concurrent callers and only disables DOM events when
-        all callers have exited.
-        '''
-        async with self._dom_enable_lock:
-            self._dom_enable_count += 1
-            if self._dom_enable_count == 1:
-                await self.execute(cdp.dom.enable())
-
-        yield
-
-        async with self._dom_enable_lock:
-            self._dom_enable_count -= 1
-            if self._dom_enable_count == 0:
-                await self.execute(cdp.dom.disable())
-
-    @asynccontextmanager
-    async def page_enable(self):
-        '''
-        A context manager that executes ``page.enable()`` when it enters and
-        then calls ``page.disable()`` when it exits.
-        This keeps track of concurrent callers and only disables page events
-        when all callers have exited.
-        '''
-        async with self._page_enable_lock:
-            self._page_enable_count += 1
-            if self._page_enable_count == 1:
-                await self.execute(cdp.page.enable())
-
-        yield
-
-        async with self._page_enable_lock:
-            self._page_enable_count -= 1
-            if self._page_enable_count == 0:
-                await self.execute(cdp.page.disable())
 
 
 @asynccontextmanager
@@ -414,6 +453,7 @@ async def open_cdp(url) -> typing.AsyncIterator[CdpConnection]:
     connection automatically. If you want to use multiple connections concurrently, it
     is recommended to open each on in a separate task.
     '''
+
     async with trio.open_nursery() as nursery:
         conn = await connect_cdp(nursery, url)
         try:
@@ -437,7 +477,7 @@ async def connect_cdp(nursery, url) -> CdpConnection:
     such as running inside of a notebook.
     '''
     ws = await connect_websocket_url(nursery, url,
-        max_message_size=MAX_WS_MESSAGE_SIZE)
+                                     max_message_size=MAX_WS_MESSAGE_SIZE)
     cdp_conn = CdpConnection(ws)
     nursery.start_soon(cdp_conn._reader_task)
     return cdp_conn
