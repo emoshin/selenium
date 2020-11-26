@@ -22,11 +22,11 @@ import org.openqa.selenium.events.EventListener;
 import org.openqa.selenium.events.EventName;
 import org.openqa.selenium.grid.config.Config;
 import org.openqa.selenium.grid.security.Secret;
+import org.openqa.selenium.grid.security.SecretOptions;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.json.JsonInput;
 import org.zeromq.ZContext;
 
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.openqa.selenium.events.zeromq.UnboundZmqEventBus.REJECTED_EVENT;
@@ -60,9 +60,9 @@ public class ZeroMqEventBus {
 
     boolean bind = config.getBool(EVENTS_SECTION, "bind").orElse(false);
 
-    Secret secret = config.get("server", "registration-secret").map(Secret::new).orElse(new Secret(""));
+    SecretOptions secretOptions = new SecretOptions(config);
 
-    return create(new ZContext(), publish, subscribe, bind, secret);
+    return create(new ZContext(), publish, subscribe, bind, secretOptions.getRegistrationSecret());
   }
 
   public static EventListener<RejectedEvent> onRejectedEvent(Consumer<RejectedEvent> handler) {

@@ -133,13 +133,33 @@ public class DockerOptions {
     Docker docker = new Docker(client);
 
     loadImages(docker, kinds.keySet().toArray(new String[0]));
+    Image videoImage = getVideoImage(docker);
+    if (isVideoRecordingAvailable()) {
+      loadImages(docker, videoImage.getName());
+    }
 
     int maxContainerCount = Runtime.getRuntime().availableProcessors();
     ImmutableMultimap.Builder<Capabilities, SessionFactory> factories = ImmutableMultimap.builder();
     kinds.forEach((name, caps) -> {
       Image image = docker.getImage(name);
       for (int i = 0; i < maxContainerCount; i++) {
-        factories.put(caps, new DockerSessionFactory(tracer, clientFactory, docker, getDockerUri(), image, caps));
+        if (isVideoRecordingAvailable()) {
+          factories.put(
+            caps,
+            new DockerSessionFactory(
+              tracer,
+              clientFactory,
+              docker,
+              getDockerUri(),
+              image,
+              caps,
+              videoImage,
+              getAssetsPath()));
+        } else {
+          factories.put(
+            caps,
+            new DockerSessionFactory(tracer, clientFactory, docker, getDockerUri(), image, caps));
+        }
       }
       LOG.info(String.format(
           "Mapping %s to docker image %s %d times",
@@ -150,10 +170,35 @@ public class DockerOptions {
     return factories.build().asMap();
   }
 
+  private boolean isVideoRecordingAvailable() {
+    return config.get(DOCKER_SECTION, "video-image").isPresent()
+           && config.get(DOCKER_SECTION, "assets-path").isPresent();
+  }
+
+  private Image getVideoImage(Docker docker) {
+    Optional<String> videoImage = config.get(DOCKER_SECTION, "video-image");
+    return videoImage.map(docker::getImage).orElse(null);
+  }
+
+  private DockerSessionAssetsPath getAssetsPath() {
+    Optional<String> hostAssetsPath = config.get(DOCKER_SECTION, "assets-path");
+    Optional<String> containerAssetsPath = config.get(DOCKER_SECTION, "container-assets-path");
+    if (hostAssetsPath.isPresent() && containerAssetsPath.isPresent()) {
+      return new DockerSessionAssetsPath(hostAssetsPath.get(), containerAssetsPath.get());
+    } else if (hostAssetsPath.isPresent()) {
+      // If only the host assets path is present, we assume this is not running inside a container.
+      return new DockerSessionAssetsPath(hostAssetsPath.get(), hostAssetsPath.get());
+    }
+    // We should not reach this point because the invocation to this method is
+    // guarded by `isVideoRecordingAvailable()`
+    return null;
+  }
+
   private void loadImages(Docker docker, String... imageNames) {
     CompletableFuture<Void> cd = CompletableFuture.allOf(
         Arrays.stream(imageNames)
-            .map(name -> CompletableFuture.supplyAsync(() -> docker.getImage(name))).toArray(CompletableFuture[]::new));
+            .map(name -> CompletableFuture.supplyAsync(() -> docker.getImage(name)))
+          .toArray(CompletableFuture[]::new));
 
     try {
       cd.get();

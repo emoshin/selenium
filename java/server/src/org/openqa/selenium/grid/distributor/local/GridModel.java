@@ -30,7 +30,6 @@ import org.openqa.selenium.grid.data.Session;
 import org.openqa.selenium.grid.data.SessionClosedEvent;
 import org.openqa.selenium.grid.data.Slot;
 import org.openqa.selenium.grid.data.SlotId;
-import org.openqa.selenium.grid.security.Secret;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.remote.SessionId;
 
@@ -58,16 +57,15 @@ public class GridModel {
   private final Map<Availability, Set<NodeStatus>> nodes = new ConcurrentHashMap<>();
   private final EventBus events;
 
-  public GridModel(EventBus events, Secret registrationSecret) {
+  public GridModel(EventBus events) {
     this.events = Require.nonNull("Event bus", events);
-    Require.nonNull("Registration secret", registrationSecret);
 
-    events.addListener(NodeDrainStarted.listener(nodeId -> setAvailability(nodeId, DRAINING)));
-    events.addListener(NodeDrainComplete.listener(this::remove));
-    events.addListener(NodeRemovedEvent.listener(this::remove));
-    events.addListener(NodeStatusEvent.listener(status -> refresh(status)));
+    this.events.addListener(NodeDrainStarted.listener(nodeId -> setAvailability(nodeId, DRAINING)));
+    this.events.addListener(NodeDrainComplete.listener(this::remove));
+    this.events.addListener(NodeRemovedEvent.listener(this::remove));
+    this.events.addListener(NodeStatusEvent.listener(this::refresh));
 
-    events.addListener(SessionClosedEvent.listener(this::release));
+    this.events.addListener(SessionClosedEvent.listener(this::release));
   }
 
   public GridModel add(NodeStatus node) {
@@ -190,7 +188,7 @@ public class GridModel {
 
       if (!UP.equals(node.availability)) {
         LOG.warning(String.format(
-          "Asked to reserve a slot on node %s, but not is %s",
+          "Asked to reserve a slot on node %s, but node is %s",
           slotId.getOwningNodeId(),
           node.availability));
         return false;

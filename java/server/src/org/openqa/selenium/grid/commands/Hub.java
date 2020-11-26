@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableSet;
 import org.openqa.selenium.BuildInfo;
 import org.openqa.selenium.cli.CliCommand;
 import org.openqa.selenium.events.EventBus;
-import org.openqa.selenium.grid.TemplateGridCommand;
 import org.openqa.selenium.grid.TemplateGridServerCommand;
 import org.openqa.selenium.grid.config.Config;
 import org.openqa.selenium.grid.config.Role;
@@ -32,12 +31,18 @@ import org.openqa.selenium.grid.graphql.GraphqlHandler;
 import org.openqa.selenium.grid.log.LoggingOptions;
 import org.openqa.selenium.grid.router.ProxyCdpIntoGrid;
 import org.openqa.selenium.grid.router.Router;
+import org.openqa.selenium.grid.security.SecretOptions;
 import org.openqa.selenium.grid.server.BaseServerOptions;
 import org.openqa.selenium.grid.server.EventBusOptions;
 import org.openqa.selenium.grid.server.NetworkOptions;
 import org.openqa.selenium.grid.server.Server;
 import org.openqa.selenium.grid.sessionmap.SessionMap;
 import org.openqa.selenium.grid.sessionmap.local.LocalSessionMap;
+import org.openqa.selenium.grid.sessionqueue.NewSessionQueue;
+import org.openqa.selenium.grid.sessionqueue.NewSessionQueuer;
+import org.openqa.selenium.grid.sessionqueue.config.NewSessionQueueOptions;
+import org.openqa.selenium.grid.sessionqueue.local.LocalNewSessionQueue;
+import org.openqa.selenium.grid.sessionqueue.local.LocalNewSessionQueuer;
 import org.openqa.selenium.grid.web.ClassPathResource;
 import org.openqa.selenium.grid.web.CombinedHandler;
 import org.openqa.selenium.grid.web.NoHandler;
@@ -45,7 +50,6 @@ import org.openqa.selenium.grid.web.ResourceHandler;
 import org.openqa.selenium.grid.web.RoutableHttpClientFactory;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.json.Json;
-import org.openqa.selenium.netty.server.NettyServer;
 import org.openqa.selenium.remote.http.Contents;
 import org.openqa.selenium.remote.http.HttpClient;
 import org.openqa.selenium.remote.http.HttpHandler;
@@ -66,6 +70,8 @@ import static java.net.HttpURLConnection.HTTP_OK;
 import static org.openqa.selenium.grid.config.StandardGridRoles.EVENT_BUS_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.HTTPD_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.ROUTER_ROLE;
+import static org.openqa.selenium.grid.config.StandardGridRoles.SESSION_QUEUER_ROLE;
+import static org.openqa.selenium.grid.config.StandardGridRoles.SESSION_QUEUE_ROLE;
 import static org.openqa.selenium.remote.http.Route.combine;
 import static org.openqa.selenium.remote.http.Route.get;
 
@@ -86,7 +92,12 @@ public class Hub extends TemplateGridServerCommand {
 
   @Override
   public Set<Role> getConfigurableRoles() {
-    return ImmutableSet.of(EVENT_BUS_ROLE, HTTPD_ROLE, ROUTER_ROLE);
+    return ImmutableSet.of(
+      EVENT_BUS_ROLE,
+      HTTPD_ROLE,
+      SESSION_QUEUE_ROLE,
+      SESSION_QUEUER_ROLE,
+      ROUTER_ROLE);
   }
 
   @Override
@@ -118,6 +129,7 @@ public class Hub extends TemplateGridServerCommand {
     handler.addHandler(sessions);
 
     BaseServerOptions serverOptions = new BaseServerOptions(config);
+    SecretOptions secretOptions = new SecretOptions(config);
 
     URL externalUrl;
     try {
@@ -132,16 +144,26 @@ public class Hub extends TemplateGridServerCommand {
       handler,
       networkOptions.getHttpClientFactory(tracer));
 
+    NewSessionQueueOptions newSessionQueueOptions = new NewSessionQueueOptions(config);
+    NewSessionQueue sessionRequests = new LocalNewSessionQueue(
+      tracer,
+      bus,
+      newSessionQueueOptions.getSessionRequestRetryInterval(),
+      newSessionQueueOptions.getSessionRequestTimeout());
+    NewSessionQueuer queuer = new LocalNewSessionQueuer(tracer, bus, sessionRequests);
+    handler.addHandler(queuer);
+
     Distributor distributor = new LocalDistributor(
       tracer,
       bus,
       clientFactory,
       sessions,
-      serverOptions.getRegistrationSecret());
+      queuer,
+      secretOptions.getRegistrationSecret());
     handler.addHandler(distributor);
 
-    Router router = new Router(tracer, clientFactory, sessions, distributor);
-    GraphqlHandler graphqlHandler = new GraphqlHandler(distributor, serverOptions.getExternalUri());
+    Router router = new Router(tracer, clientFactory, sessions, queuer, distributor);
+    GraphqlHandler graphqlHandler = new GraphqlHandler(tracer, distributor, serverOptions.getExternalUri());
     HttpHandler readinessCheck = req -> {
       boolean ready = router.isReady() && bus.isReady();
       return new HttpResponse()

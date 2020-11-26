@@ -25,14 +25,13 @@ import warnings
 from contextlib import contextmanager
 
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver, WebElement
+from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
 
 from .firefox_binary import FirefoxBinary
 from .firefox_profile import FirefoxProfile
 from .options import Options
 from .remote_connection import FirefoxRemoteConnection
 from .service import Service
-from .webelement import FirefoxWebElement
 
 
 # Default for log_path variable. To be deleted when deprecations for arguments are removed.
@@ -45,8 +44,6 @@ class WebDriver(RemoteWebDriver):
 
     CONTEXT_CHROME = "chrome"
     CONTEXT_CONTENT = "content"
-
-    _web_element_cls = FirefoxWebElement
 
     def __init__(self, firefox_profile=None, firefox_binary=None,
                  capabilities=None, proxy=None,
@@ -114,7 +111,7 @@ class WebDriver(RemoteWebDriver):
                           DeprecationWarning, stacklevel=2)
         self.binary = None
         if firefox_profile is not None:
-            warnings.warn('firefox_profile has been deprecated, please pass in a Service object',
+            warnings.warn('firefox_profile has been deprecated, please pass in an Options object',
                           DeprecationWarning, stacklevel=2)
         self.profile = None
 
@@ -183,7 +180,8 @@ class WebDriver(RemoteWebDriver):
         capabilities.update(options.to_capabilities())
 
         executor = FirefoxRemoteConnection(
-            remote_server_addr=self.service.service_url)
+            remote_server_addr=self.service.service_url,
+            ignore_proxy=options._ignore_local_proxy)
         RemoteWebDriver.__init__(
             self,
             command_executor=executor,
@@ -341,17 +339,3 @@ class WebDriver(RemoteWebDriver):
                 driver.get_full_page_screenshot_as_base64()
         """
         return self.execute("FULL_PAGE_SCREENSHOT")['value']
-
-    def _wrap_value(self, value):
-        """Overload the _wrap_value so that custom WebElement types can be checked against"""
-        if isinstance(value, dict):
-            converted = {}
-            for key, val in value.items():
-                converted[key] = self._wrap_value(val)
-            return converted
-        elif isinstance(value, (self._web_element_cls, WebElement)):
-            return {'ELEMENT': value.id, 'element-6066-11e4-a52e-4f735466cecf': value.id}
-        elif isinstance(value, list):
-            return list(self._wrap_value(item) for item in value)
-        else:
-            return value

@@ -23,16 +23,13 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.net.MediaType;
 import org.openqa.selenium.BuildInfo;
 import org.openqa.selenium.cli.CliCommand;
-import org.openqa.selenium.grid.TemplateGridCommand;
 import org.openqa.selenium.grid.TemplateGridServerCommand;
 import org.openqa.selenium.grid.config.Config;
 import org.openqa.selenium.grid.config.Role;
 import org.openqa.selenium.grid.distributor.Distributor;
 import org.openqa.selenium.grid.distributor.config.DistributorOptions;
-import org.openqa.selenium.grid.server.BaseServerOptions;
 import org.openqa.selenium.grid.server.Server;
 import org.openqa.selenium.internal.Require;
-import org.openqa.selenium.netty.server.NettyServer;
 import org.openqa.selenium.remote.http.Contents;
 import org.openqa.selenium.remote.http.HttpHandler;
 import org.openqa.selenium.remote.http.HttpResponse;
@@ -47,6 +44,7 @@ import static java.net.HttpURLConnection.HTTP_OK;
 import static org.openqa.selenium.grid.config.StandardGridRoles.EVENT_BUS_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.HTTPD_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.SESSION_MAP_ROLE;
+import static org.openqa.selenium.grid.config.StandardGridRoles.SESSION_QUEUER_ROLE;
 import static org.openqa.selenium.remote.http.HttpMethod.GET;
 import static org.openqa.selenium.remote.http.Route.get;
 
@@ -68,7 +66,7 @@ public class DistributorServer extends TemplateGridServerCommand {
 
   @Override
   public Set<Role> getConfigurableRoles() {
-    return ImmutableSet.of(EVENT_BUS_ROLE, HTTPD_ROLE, SESSION_MAP_ROLE);
+    return ImmutableSet.of(EVENT_BUS_ROLE, HTTPD_ROLE, SESSION_MAP_ROLE, SESSION_QUEUER_ROLE);
   }
 
   @Override

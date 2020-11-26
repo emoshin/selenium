@@ -33,9 +33,11 @@ import java.time.Instant;
 class DockerSession extends ProtocolConvertingSession {
 
   private final Container container;
+  private final Container videoContainer;
 
   DockerSession(
     Container container,
+    Container videoContainer,
     Tracer tracer,
     HttpClient client,
     SessionId id,
@@ -47,11 +49,14 @@ class DockerSession extends ProtocolConvertingSession {
     Instant startTime) {
     super(tracer, client, id, url, downstream, upstream, stereotype, capabilities, startTime);
     this.container = Require.nonNull("Container", container);
+    this.videoContainer = videoContainer;
   }
 
   @Override
   public void stop() {
+    if (videoContainer != null) {
+      videoContainer.stop(Duration.ofSeconds(10));
+    }
     container.stop(Duration.ofMinutes(1));
-    container.delete();
   }
 }

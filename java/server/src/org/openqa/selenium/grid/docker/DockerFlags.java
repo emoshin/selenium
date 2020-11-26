@@ -41,6 +41,13 @@ public class DockerFlags implements HasRoles {
   private URL dockerUrl;
 
   @Parameter(
+    names = {"--docker-host"},
+    description = "Host name where the docker daemon is running"
+  )
+  @ConfigValue(section = "docker", name = "host", example = "\"tcp://localhost:2375\"")
+  private String dockerHost;
+
+  @Parameter(
       names = {"--docker", "-D"},
       description = "Docker configs which map image name to stereotype capabilities (example " +
                     "`-D selenium/standalone-firefox:latest '{\"browserName\": \"firefox\"}')",
@@ -51,6 +58,33 @@ public class DockerFlags implements HasRoles {
     name = "configs",
     example = "[\"selenium/standalone-firefox:latest\", \"{\\\"browserName\\\": \\\"firefox\\\"}\"]")
   private List<String> images2Capabilities;
+
+  @Parameter(
+    names = {"--docker-video-image"},
+    description = "Docker image to be used when video recording is enabled"
+  )
+  @ConfigValue(section = "docker", name = "video-image", example = "\"selenium/video:ffmpeg-4.3.1-20201030\"")
+  private String videoImage;
+
+  @Parameter(
+    names = {"--docker-assets-path"},
+    description = "Absolute path where assets will be stored"
+  )
+  @ConfigValue(section = "docker", name = "assets-path", example = "\"/absolute/path/to/assets/path\"")
+  private String assetsPath;
+
+  @Parameter(
+    names = {"--docker-container-assets-path"},
+    description = "Absolute path where assets inside the container will be stored. Use it when " +
+                  "running inside a Docker container.",
+    hidden = true
+  )
+  @ConfigValue(
+    section = "docker",
+    name = "container-assets-path",
+    example = "\"/absolute/path/to/container/assets/path\""
+  )
+  private String containerAssetsPath;
 
   @Override
   public Set<Role> getRoles() {
