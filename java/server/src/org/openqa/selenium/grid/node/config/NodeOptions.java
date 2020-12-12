@@ -51,6 +51,8 @@ import java.util.stream.StreamSupport;
 
 public class NodeOptions {
 
+  private static final String NODE_SECTION = "node";
+
   private static final Logger LOG = Logger.getLogger(NodeOptions.class.getName());
   private static final Json JSON = new Json();
   private static final String DEFAULT_IMPL = "org.openqa.selenium.grid.node.local.LocalNodeFactory";
@@ -62,7 +64,7 @@ public class NodeOptions {
   }
 
   public Optional<URI> getPublicGridUri() {
-    return config.get("node", "grid-url").map(url -> {
+    return config.get(NODE_SECTION, "grid-url").map(url -> {
       try {
         return new URI(url);
       } catch (URISyntaxException e) {
@@ -72,15 +74,13 @@ public class NodeOptions {
   }
 
   public Node getNode() {
-    return config.getClass("node", "implementation", Node.class, DEFAULT_IMPL);
+    return config.getClass(NODE_SECTION, "implementation", Node.class, DEFAULT_IMPL);
   }
 
   public Map<Capabilities, Collection<SessionFactory>> getSessionFactories(
     /* Danger! Java stereotype ahead! */ Function<WebDriverInfo, Collection<SessionFactory>> factoryFactory) {
 
-    int maxSessions = Math.min(
-      config.getInt("node", "max-concurrent-sessions").orElse(Runtime.getRuntime().availableProcessors()),
-      Runtime.getRuntime().availableProcessors());
+    int maxSessions = getMaxSessions();
 
     Map<WebDriverInfo, Collection<SessionFactory>> allDrivers = discoverDrivers(maxSessions, factoryFactory);
 
@@ -93,8 +93,15 @@ public class NodeOptions {
     return sessionFactories.build().asMap();
   }
 
+  public int getMaxSessions() {
+    return Math.min(
+      config.getInt(NODE_SECTION, "max-concurrent-sessions")
+        .orElse(Runtime.getRuntime().availableProcessors()),
+      Runtime.getRuntime().availableProcessors());
+  }
+
   private void addDriverFactoriesFromConfig(ImmutableMultimap.Builder<Capabilities, SessionFactory> sessionFactories) {
-    config.getAll("node", "driver-factories").ifPresent(allConfigs -> {
+    config.getAll(NODE_SECTION, "driver-factories").ifPresent(allConfigs -> {
       if (allConfigs.size() % 2 != 0) {
         throw new ConfigException("Expected each driver class to be mapped to a config");
       }
@@ -141,7 +148,7 @@ public class NodeOptions {
   private void addDetectedDrivers(
     Map<WebDriverInfo, Collection<SessionFactory>> allDrivers,
     ImmutableMultimap.Builder<Capabilities, SessionFactory> sessionFactories) {
-    if (!config.getBool("node", "detect-drivers").orElse(false)) {
+    if (!config.getBool(NODE_SECTION, "detect-drivers").orElse(true)) {
       return;
     }
 
@@ -153,7 +160,7 @@ public class NodeOptions {
   private void addSpecificDrivers(
     Map<WebDriverInfo, Collection<SessionFactory>> allDrivers,
     ImmutableMultimap.Builder<Capabilities, SessionFactory> sessionFactories) {
-    List<String> drivers = config.getAll("node", "drivers").orElse(new ArrayList<>()).stream()
+    List<String> drivers = config.getAll(NODE_SECTION, "drivers").orElse(new ArrayList<>()).stream()
       .map(String::toLowerCase)
       .collect(Collectors.toList());
 
@@ -168,7 +175,7 @@ public class NodeOptions {
     int maxSessions,
     Function<WebDriverInfo, Collection<SessionFactory>> factoryFactory) {
 
-    if (!config.getBool("node", "detect-drivers").orElse(false)) {
+    if (!config.getBool(NODE_SECTION, "detect-drivers").orElse(true)) {
       return ImmutableMap.of();
     }
 

@@ -1,4 +1,4 @@
-// <copyright file="V84Network.cs" company="WebDriver Committers">
+// <copyright file="V87Network.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -26,7 +26,7 @@ using OpenQA.Selenium.DevTools.V87.Network;
 namespace OpenQA.Selenium.DevTools.V87
 {
     /// <summary>
-    /// Class providing functionality for manipulating network calls using version 86 of the DevTools Protocol
+    /// Class providing functionality for manipulating network calls using version 87 of the DevTools Protocol
     /// </summary>
     public class V87Network : DevTools.Network
     {
@@ -34,7 +34,7 @@ namespace OpenQA.Selenium.DevTools.V87
         private NetworkAdapter network;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="V86Network"/> class.
+        /// Initializes a new instance of the <see cref="V87Network"/> class.
         /// </summary>
         /// <param name="network">The adapter for the Network domain.</param>
         /// <param name="fetch">The adapter for the Fetch domain.</param>
@@ -104,9 +104,42 @@ namespace OpenQA.Selenium.DevTools.V87
         /// Asynchronously continues an intercepted network request.
         /// </summary>
         /// <param name="requestData">The <see cref="HttpRequestData"/> of the request.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        public override async Task ContinueRequest(HttpRequestData requestData)
+        {
+            var commandSettings = new ContinueRequestCommandSettings()
+            {
+                RequestId = requestData.RequestId,
+                Method = requestData.Method,
+                Url = requestData.Url,
+            };
+
+            if (requestData.Headers.Count > 0)
+            {
+                List<HeaderEntry> headers = new List<HeaderEntry>();
+                foreach (KeyValuePair<string, string> headerPair in requestData.Headers)
+                {
+                    headers.Add(new HeaderEntry() { Name = headerPair.Key, Value = headerPair.Value });
+                }
+
+                commandSettings.Headers = headers.ToArray();
+            }
+
+            if (!string.IsNullOrEmpty(requestData.PostData))
+            {
+                commandSettings.PostData = requestData.PostData;
+            }
+
+            await fetch.ContinueRequest(commandSettings);
+        }
+
+        /// <summary>
+        /// Asynchronously continues an intercepted network request.
+        /// </summary>
+        /// <param name="requestData">The <see cref="HttpRequestData"/> of the request.</param>
         /// <param name="responseData">The <see cref="HttpResponseData"/> with which to respond to the request</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
-        public override async Task ContinueRequest(HttpRequestData requestData, HttpResponseData responseData)
+        public override async Task ContinueRequestWithResponse(HttpRequestData requestData, HttpResponseData responseData)
         {
             var commandSettings = new FulfillRequestCommandSettings()
             {

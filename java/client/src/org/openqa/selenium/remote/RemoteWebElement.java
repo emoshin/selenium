@@ -98,12 +98,12 @@ public class RemoteWebElement implements WebElement, WrapsDriver, TakesScreensho
     String allKeysToSend = String.join("", keysToSend);
 
     List<File> files = Arrays.stream(allKeysToSend.split("\n"))
-                             .map(fileDetector::getLocalFile)
-                             .collect(Collectors.toList());
+      .map(fileDetector::getLocalFile)
+      .collect(Collectors.toList());
     if (!files.isEmpty() && !files.contains(null)) {
       allKeysToSend = files.stream()
-                           .map(this::upload)
-                           .collect(Collectors.joining("\n"));
+        .map(this::upload)
+        .collect(Collectors.joining("\n"));
     }
 
     execute(DriverCommand.SEND_KEYS_TO_ELEMENT(id, new CharSequence[]{allKeysToSend}));
@@ -137,7 +137,14 @@ public class RemoteWebElement implements WebElement, WrapsDriver, TakesScreensho
   @Override
   public String getDomProperty(String name) {
     return stringValueOf(
-      execute(DriverCommand.GET_ELEMENT_PROPERTY(id, name))
+      execute(DriverCommand.GET_ELEMENT_DOM_PROPERTY(id, name))
+        .getValue());
+  }
+
+  @Override
+  public String getDomAttribute(String name) {
+    return stringValueOf(
+      execute(DriverCommand.GET_ELEMENT_DOM_ATTRIBUTE(id, name))
         .getValue());
   }
 
@@ -145,6 +152,20 @@ public class RemoteWebElement implements WebElement, WrapsDriver, TakesScreensho
   public String getAttribute(String name) {
     return stringValueOf(
       execute(DriverCommand.GET_ELEMENT_ATTRIBUTE(id, name))
+        .getValue());
+  }
+
+  @Override
+  public String getAriaRole() {
+    return stringValueOf(
+      execute(DriverCommand.GET_ELEMENT_ARIA_ROLE(id))
+        .getValue());
+  }
+
+  @Override
+  public String getAccessibleName() {
+    return stringValueOf(
+      execute(DriverCommand.GET_ELEMENT_ACCESSIBLE_NAME(id))
         .getValue());
   }
 
@@ -355,9 +376,7 @@ public class RemoteWebElement implements WebElement, WrapsDriver, TakesScreensho
 
         @SuppressWarnings("unchecked")
         Map<String, Number> mapped = (Map<String, Number>) response.getValue();
-        return new Point(mapped.get("x")
-                               .intValue(), mapped.get("y")
-                                                  .intValue());
+        return new Point(mapped.get("x").intValue(), mapped.get("y").intValue());
       }
 
       @Override
@@ -384,10 +403,10 @@ public class RemoteWebElement implements WebElement, WrapsDriver, TakesScreensho
       String base64EncodedPng = new String((byte[]) result, UTF_8);
       return outputType.convertFromBase64Png(base64EncodedPng);
     } else {
-      throw new RuntimeException(String.format("Unexpected result for %s command: %s",
+      throw new RuntimeException(String.format(
+        "Unexpected result for %s command: %s",
         DriverCommand.ELEMENT_SCREENSHOT,
-        result == null ? "null" : result.getClass()
-                                        .getName() + " instance"));
+        result == null ? "null" : result.getClass().getName() + " instance"));
     }
   }
 
