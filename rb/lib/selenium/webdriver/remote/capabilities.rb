@@ -82,17 +82,6 @@ module Selenium
           end
 
           def edge(opts = {})
-            edge_chrome(opts)
-          end
-
-          def edge_html(opts = {})
-            new({
-              browser_name: 'MicrosoftEdge',
-              platform_name: :windows
-            }.merge(opts))
-          end
-
-          def edge_chrome(opts = {})
             new({
               browser_name: 'MicrosoftEdge'
             }.merge(opts))
@@ -112,11 +101,8 @@ module Selenium
           alias_method :ff, :firefox
 
           def safari(opts = {})
-            browser = Selenium::WebDriver::Safari.technology_preview? ? "Safari Technology Preview" : 'safari'
-
             new({
-              browser_name: browser,
-              platform_name: :mac
+              browser_name: Selenium::WebDriver::Safari.technology_preview? ? "Safari Technology Preview" : 'safari'
             }.merge(opts))
           end
 

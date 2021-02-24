@@ -33,7 +33,9 @@ module Selenium
         include DriverExtensions::DownloadsFiles
         include DriverExtensions::HasDevTools
         include DriverExtensions::HasAuthentication
+        include DriverExtensions::HasLogs
         include DriverExtensions::HasLogEvents
+        include DriverExtensions::PrintsPage
 
         def browser
           :chrome
@@ -48,6 +50,10 @@ module Selenium
         end
 
         private
+
+        def devtools_version
+          Integer(capabilities.browser_version.split('.').first)
+        end
 
         def debugger_address
           capabilities['goog:chromeOptions']['debuggerAddress']

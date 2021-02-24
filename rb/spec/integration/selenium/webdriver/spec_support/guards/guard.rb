@@ -50,10 +50,11 @@ module Selenium
                         'no reason given'
                       end
 
-            if @type == :exclude
+            case @type
+            when :exclude
               "Test not guarded because it breaks test run; #{details}"
-            elsif @type == :exclusive
-              'Test does not apply to this configuration'
+            when :exclusive
+              "Test does not apply to this configuration; #{details}"
             else
               "Test guarded; #{details}"
             end

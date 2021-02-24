@@ -20,7 +20,10 @@ package org.openqa.selenium.devtools;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
+
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.devtools.idealized.target.model.SessionID;
+import org.openqa.selenium.internal.Either;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.json.Json;
 import org.openqa.selenium.json.JsonInput;
@@ -45,6 +48,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.openqa.selenium.internal.Debug.getDebugLogLevel;
 import static org.openqa.selenium.json.Json.MAP_TYPE;
 import static org.openqa.selenium.remote.http.HttpMethod.GET;
 
@@ -59,7 +63,7 @@ public class Connection implements Closeable {
   });
   private static final AtomicLong NEXT_ID = new AtomicLong(1L);
   private final WebSocket socket;
-  private final Map<Long, Consumer<JsonInput>> methodCallbacks = new LinkedHashMap<>();
+  private final Map<Long, Consumer<Either<Throwable, JsonInput>>> methodCallbacks = new LinkedHashMap<>();
   private final Multimap<Event<?>, Consumer<?>> eventCallbacks = HashMultimap.create();
 
   public Connection(HttpClient client, String url) {
@@ -99,13 +103,17 @@ public class Connection implements Closeable {
 
     CompletableFuture<X> result = new CompletableFuture<>();
     if (command.getSendsResponse()) {
-      methodCallbacks.put(id, NamedConsumer.of(command.getMethod(), input -> {
-        try {
-          X value = command.getMapper().apply(input);
-          result.complete(value);
-        } catch (Throwable e) {
-          LOG.log(Level.WARNING, String.format("Unable to map result for %s", command.getMethod()), e);
-          result.completeExceptionally(e);
+      methodCallbacks.put(id, NamedConsumer.of(command.getMethod(), inputOrException -> {
+        if (inputOrException.isRight()) {
+          try {
+            X value = command.getMapper().apply(inputOrException.right());
+            result.complete(value);
+          } catch (Throwable e) {
+            LOG.log(Level.WARNING, String.format("Unable to map result for %s", command.getMethod()), e);
+            result.completeExceptionally(e);
+          }
+        } else {
+          result.completeExceptionally(inputOrException.left());
         }
       }));
     }
@@ -122,7 +130,7 @@ public class Connection implements Closeable {
     try (JsonOutput out = JSON.newOutput(json).writeClassName(false)) {
       out.write(serialized.build());
     }
-    LOG.info(() -> String.format("-> %s", json));
+    LOG.log(getDebugLogLevel(), () -> String.format("-> %s", json));
     socket.sendText(json);
 
     if (!command.getSendsResponse() ) {
@@ -191,11 +199,12 @@ public class Connection implements Closeable {
     // TODO: decode once, and once only
 
     String asString = String.valueOf(data);
-    LOG.info(() -> String.format("<- %s", asString));
+    LOG.log(getDebugLogLevel(), () -> String.format("<- %s", asString));
 
     Map<String, Object> raw = JSON.toType(asString, MAP_TYPE);
-    if (raw.get("id") instanceof Number && raw.get("result") != null) {
-      Consumer<JsonInput> consumer = methodCallbacks.remove(((Number) raw.get("id")).longValue());
+    if (raw.get("id") instanceof Number
+        && (raw.get("result") != null || raw.get("error") != null)) {
+      Consumer<Either<Throwable, JsonInput>> consumer = methodCallbacks.remove(((Number) raw.get("id")).longValue());
       if (consumer == null) {
         return;
       }
@@ -206,7 +215,12 @@ public class Connection implements Closeable {
         while (input.hasNext()) {
           switch (input.nextName()) {
             case "result":
-              consumer.accept(input);
+              consumer.accept(Either.right(input));
+              break;
+
+            case "error":
+              consumer.accept(Either.left(new WebDriverException(asString)));
+              input.skipValue();
               break;
 
             default:
@@ -216,14 +230,17 @@ public class Connection implements Closeable {
         input.endObject();
       }
     } else if (raw.get("method") instanceof String && raw.get("params") instanceof Map) {
-      LOG.info(String.format("Method %s called with %d callbacks available", raw.get("method"), eventCallbacks.keySet().size()));
+      LOG.log(
+        getDebugLogLevel(),
+        String.format("Method %s called with %d callbacks available", raw.get("method"), eventCallbacks.keySet().size()));
       synchronized (eventCallbacks) {
         // TODO: Also only decode once.
         eventCallbacks.keySet().stream()
-          .peek(event -> LOG.info(String.format("Matching %s with %s", raw.get("method"), event.getMethod())))
+          .peek(event -> LOG.log(
+            getDebugLogLevel(),
+            String.format("Matching %s with %s", raw.get("method"), event.getMethod())))
           .filter(event -> raw.get("method").equals(event.getMethod()))
           .forEach(event -> {
-            LOG.info("Made a match");
             // TODO: This is grossly inefficient. I apologise, and we should fix this.
             try (StringReader reader = new StringReader(asString);
                  JsonInput input = JSON.newInput(reader)) {
@@ -251,7 +268,9 @@ public class Connection implements Closeable {
 
               for (Consumer<?> action : eventCallbacks.get(event)) {
                 @SuppressWarnings("unchecked") Consumer<Object> obj = (Consumer<Object>) action;
-                LOG.info(String.format("Calling callback for %s using %s being passed %s", event, obj, finalValue));
+                LOG.log(
+                  getDebugLogLevel(),
+                  String.format("Calling callback for %s using %s being passed %s", event, obj, finalValue));
                 obj.accept(finalValue);
               }
             }

@@ -17,6 +17,7 @@
 
 package org.openqa.selenium.grid.data;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 import org.openqa.selenium.ImmutableCapabilities;
@@ -25,6 +26,7 @@ import org.openqa.selenium.remote.SessionId;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,7 +55,13 @@ public class NodeStatusTest {
             stereotype,
             new ImmutableCapabilities("peas", "sausages"),
             Instant.now())))),
-      UP);
+      UP,
+      Duration.ofSeconds(10),
+      "4.0.0",
+      ImmutableMap.of(
+        "name", "Max OS X",
+        "arch", "x86_64",
+        "version", "10.15.7"));
 
     Json json = new Json();
     String source = json.toJson(status);

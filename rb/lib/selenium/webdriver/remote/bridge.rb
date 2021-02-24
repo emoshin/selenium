@@ -35,7 +35,7 @@ module Selenium
         # @api private
         #
 
-        def initialize(http_client: nil, url:)
+        def initialize(url:, http_client: nil)
           uri = url.is_a?(URI) ? url : URI.parse(url)
           uri.path += '/' unless uri.path.end_with?('/')
 
@@ -307,22 +307,6 @@ module Selenium
           execute_script('return sessionStorage.length')
         end
 
-        def location
-          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support getting location'
-        end
-
-        def set_location(_lat, _lon, _alt)
-          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support setting location'
-        end
-
-        def network_connection
-          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support getting network connection'
-        end
-
-        def network_connection=(_type)
-          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support setting network connection'
-        end
-
         #
         # javascript execution
         #
@@ -393,6 +377,10 @@ module Selenium
           execute :release_actions
         end
 
+        def print_page(options = {})
+          execute :print_page, {}, {options: options}
+        end
+
         def click_element(element)
           execute :element_click, id: element
         end
@@ -430,14 +418,6 @@ module Selenium
           execute_script("var e = arguments[0].ownerDocument.createEvent('Event');" \
                             "e.initEvent('submit', true, true);" \
                             'if (arguments[0].dispatchEvent(e)) { arguments[0].submit() }', form.as_json)
-        end
-
-        def screen_orientation=(orientation)
-          execute :set_screen_orientation, {}, {orientation: orientation}
-        end
-
-        def screen_orientation
-          execute :get_screen_orientation
         end
 
         #
@@ -620,7 +600,7 @@ module Selenium
           [how, what]
         end
 
-        ESCAPE_CSS_REGEXP = /(['"\\#.:;,!?+<>=~*^$|%&@`{}\-\[\]\(\)])/.freeze
+        ESCAPE_CSS_REGEXP = /(['"\\#.:;,!?+<>=~*^$|%&@`{}\-\[\]()])/.freeze
         UNICODE_CODE_POINT = 30
 
         # Escapes invalid characters in CSS selector.

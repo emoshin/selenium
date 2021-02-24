@@ -18,7 +18,6 @@
 package org.openqa.selenium.grid.sessionqueue;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.openqa.selenium.Capabilities;
@@ -33,6 +32,7 @@ import org.openqa.selenium.grid.data.NewSessionResponse;
 import org.openqa.selenium.grid.data.NewSessionResponseEvent;
 import org.openqa.selenium.grid.data.RequestId;
 import org.openqa.selenium.grid.data.Session;
+import org.openqa.selenium.grid.security.Secret;
 import org.openqa.selenium.grid.sessionqueue.local.LocalNewSessionQueue;
 import org.openqa.selenium.grid.sessionqueue.local.LocalNewSessionQueuer;
 import org.openqa.selenium.grid.sessionqueue.remote.RemoteNewSessionQueuer;
@@ -54,6 +54,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -81,14 +82,15 @@ import static org.openqa.selenium.remote.http.HttpMethod.POST;
 
 public class NewSessionQueuerTest {
 
+  private static final Json JSON = new Json();
+  private static int count = 0;
+  private final Secret registrationSecret = new Secret("secret");
   private LocalNewSessionQueuer local;
   private RemoteNewSessionQueuer remote;
   private EventBus bus;
   private ImmutableCapabilities caps;
   private NewSessionPayload payload;
   private HttpRequest request;
-  private static int count = 0;
-  private static final Json JSON = new Json();
   private NewSessionQueue sessionQueue;
 
 
@@ -104,10 +106,10 @@ public class NewSessionQueuerTest {
         Duration.ofSeconds(1),
         Duration.ofSeconds(1000));
 
-    local = new LocalNewSessionQueuer(tracer, bus, sessionQueue);
+    local = new LocalNewSessionQueuer(tracer, bus, sessionQueue, registrationSecret);
 
     HttpClient client = new PassthroughHttpClient(local);
-    remote = new RemoteNewSessionQueuer(tracer, client);
+    remote = new RemoteNewSessionQueuer(tracer, client, registrationSecret);
 
     payload = NewSessionPayload.create(caps);
     request = createRequest(payload, POST, "/session");
@@ -224,6 +226,32 @@ public class NewSessionQueuerTest {
 
     assertEquals(count, 1);
     assertFalse(remote.remove(requestId).isPresent());
+  }
+
+  @Test
+  public void shouldBeAbleToGetQueueContents() {
+    RequestId requestId = new RequestId(UUID.randomUUID());
+    sessionQueue.offerLast(request, requestId);
+
+    List<Object> response = local.getQueueContents();
+    assertThat(response).isNotNull();
+
+    assertEquals(1, response.size());
+
+    assertEquals(caps, response.get(0));
+  }
+
+  @Test
+  public void shouldBeAbleToGetQueueContentsRemotely() {
+    RequestId requestId = new RequestId(UUID.randomUUID());
+    sessionQueue.offerLast(request, requestId);
+
+    List<Object> response = sessionQueue.getQueuedRequests();
+    assertThat(response).isNotNull();
+
+    assertEquals(1, response.size());
+
+    assertEquals(caps, response.iterator().next());
   }
 
   @Test
@@ -414,10 +442,10 @@ public class NewSessionQueuerTest {
         Duration.ofSeconds(4),
         Duration.ofSeconds(0));
 
-    local = new LocalNewSessionQueuer(tracer, bus, sessionQueue);
+    local = new LocalNewSessionQueuer(tracer, bus, sessionQueue, registrationSecret);
 
     HttpClient client = new PassthroughHttpClient(local);
-    remote = new RemoteNewSessionQueuer(tracer, client);
+    remote = new RemoteNewSessionQueuer(tracer, client, registrationSecret);
 
     AtomicBoolean isPresent = new AtomicBoolean();
     bus.addListener(NewSessionRequestEvent.listener(reqId -> {

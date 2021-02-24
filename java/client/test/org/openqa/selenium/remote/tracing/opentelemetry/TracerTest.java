@@ -17,19 +17,23 @@
 
 package org.openqa.selenium.remote.tracing.opentelemetry;
 
-import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
-import io.opentelemetry.context.propagation.DefaultContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
-import io.opentelemetry.sdk.trace.TracerSdkManagement;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.data.EventData;
 import io.opentelemetry.sdk.trace.data.SpanData;
+import io.opentelemetry.sdk.trace.data.StatusData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
-import io.opentelemetry.api.trace.propagation.HttpTraceContext;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.openqa.selenium.grid.web.CombinedHandler;
@@ -68,6 +72,16 @@ import static org.openqa.selenium.remote.tracing.HttpTracing.newSpanAsChildOf;
 @Category(UnitTests.class)
 public class TracerTest {
 
+  @Before
+  public void before() {
+    GlobalOpenTelemetry.resetForTest();
+  }
+
+  @After
+  public void after() {
+    GlobalOpenTelemetry.resetForTest();
+  }
+
   @Test
   public void shouldBeAbleToCreateATracer() {
     List<SpanData> allSpans = new ArrayList<>();
@@ -84,7 +98,7 @@ public class TracerTest {
 
     assertThat(values).hasSize(1);
     assertThat(values).element(0)
-        .extracting(SpanData::getStatus).extracting(SpanData.Status::getCanonicalCode).isEqualTo(
+        .extracting(SpanData::getStatus).extracting(StatusData::getStatusCode).isEqualTo(
         StatusCode.ERROR);
     assertThat(values).element(0)
         .extracting(el -> el.getAttributes().get(AttributeKey.stringKey("cheese"))).isEqualTo("gouda");
@@ -126,10 +140,10 @@ public class TracerTest {
     SpanData spanData = allSpans.get(0);
     assertThat(spanData.getEvents()).hasSize(1);
 
-    List<SpanData.Event> timedEvents = spanData.getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName)
+    List<EventData> timedEvents = spanData.getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName)
         .isEqualTo(event);
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getTotalAttributeCount)
+    assertThat(timedEvents).element(0).extracting(EventData::getTotalAttributeCount)
         .isEqualTo(0);
   }
 
@@ -149,12 +163,12 @@ public class TracerTest {
     SpanData spanData = allSpans.get(0);
     assertThat(spanData.getEvents()).hasSize(2);
 
-    List<SpanData.Event> timedEvents = spanData.getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName)
+    List<EventData> timedEvents = spanData.getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName)
         .isEqualTo(startEvent);
-    assertThat(timedEvents).element(1).extracting(SpanData.Event::getName)
+    assertThat(timedEvents).element(1).extracting(EventData::getName)
         .isEqualTo(endEvent);
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getTotalAttributeCount)
+    assertThat(timedEvents).element(0).extracting(EventData::getTotalAttributeCount)
         .isEqualTo(0);
   }
 
@@ -178,14 +192,14 @@ public class TracerTest {
     assertThat(allSpans).hasSize(2);
     SpanData httpSpanData = allSpans.get(0);
     assertThat(httpSpanData.getEvents()).hasSize(1);
-    List<SpanData.Event> httpTimedEvents = httpSpanData.getEvents();
-    assertThat(httpTimedEvents).element(0).extracting(SpanData.Event::getName)
+    List<EventData> httpTimedEvents = httpSpanData.getEvents();
+    assertThat(httpTimedEvents).element(0).extracting(EventData::getName)
         .isEqualTo(httpEvent);
 
     SpanData dbSpanData = allSpans.get(1);
     assertThat(dbSpanData.getEvents()).hasSize(1);
-    List<SpanData.Event> dbTimedEvents = dbSpanData.getEvents();
-    assertThat(dbTimedEvents).element(0).extracting(SpanData.Event::getName)
+    List<EventData> dbTimedEvents = dbSpanData.getEvents();
+    assertThat(dbTimedEvents).element(0).extracting(EventData::getName)
         .isEqualTo(databaseEvent);
   }
 
@@ -196,7 +210,7 @@ public class TracerTest {
     String event = "Test event";
     String attribute = "testBoolean";
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(attribute, false);
 
     try (Span span = tracer.getCurrentContext().createSpan("parent")) {
@@ -206,8 +220,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -218,9 +232,9 @@ public class TracerTest {
     String event = "Test event";
     String arrayKey = "booleanArray";
     String varArgsKey = "booleanVarArgs";
-    Boolean[] booleanArray = new Boolean[]{true, false};
+    boolean[] booleanArray = new boolean[]{true, false};
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(arrayKey, booleanArray);
     attributes.put(varArgsKey, true, false, true);
 
@@ -232,8 +246,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -245,7 +259,7 @@ public class TracerTest {
     String attribute = "testDouble";
     Double attributeValue = 1.1;
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(attribute, attributeValue);
 
     try (Span span = tracer.getCurrentContext().createSpan("parent")) {
@@ -255,8 +269,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -267,9 +281,9 @@ public class TracerTest {
     String event = "Test event";
     String arrayKey = "doubleArray";
     String varArgsKey = "doubleVarArgs";
-    Double[] doubleArray = new Double[]{4.5, 2.5};
+    double[] doubleArray = new double[]{4.5, 2.5};
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(arrayKey, doubleArray);
     attributes.put(varArgsKey, 2.2, 5.3);
 
@@ -281,8 +295,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -294,7 +308,7 @@ public class TracerTest {
     String attribute = "testLong";
     Long attributeValue = 500L;
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(attribute, attributeValue);
 
     try (Span span = tracer.getCurrentContext().createSpan("parent")) {
@@ -304,8 +318,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -316,9 +330,9 @@ public class TracerTest {
     String event = "Test event";
     String arrayKey = "longArray";
     String varArgsKey = "longVarArgs";
-    Long[] longArray = new Long[]{400L, 200L};
+    long[] longArray = new long[]{400L, 200L};
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(arrayKey, longArray);
     attributes.put(varArgsKey, 250L, 5L);
 
@@ -330,8 +344,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -343,7 +357,7 @@ public class TracerTest {
     String attribute = "testString";
     String attributeValue = "attributeValue";
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(attribute, attributeValue);
 
     try (Span span = tracer.getCurrentContext().createSpan("parent")) {
@@ -353,8 +367,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -367,7 +381,7 @@ public class TracerTest {
     String varArgsKey = "strVarArgs";
     String[] strArray = new String[]{"hey", "hello"};
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(arrayKey, strArray);
     attributes.put(varArgsKey, "hi", "hola");
 
@@ -379,8 +393,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -392,7 +406,7 @@ public class TracerTest {
     String attribute = "testString";
     String attributeValue = "Hey";
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put(attribute, attributeValue);
     attributes.put(attribute, attributeValue);
 
@@ -404,8 +418,8 @@ public class TracerTest {
     }
 
     assertThat(allSpans).hasSize(1);
-    List<SpanData.Event> timedEvents = allSpans.get(0).getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = allSpans.get(0).getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -415,11 +429,9 @@ public class TracerTest {
     Tracer tracer = createTracer(allSpans);
     String event = "Test event";
     String[] stringArray = new String[]{"Hey", "Hello"};
-    Long[] longArray = new Long[]{10L, 5L};
-    Double[] doubleArray = new Double[]{4.5, 2.5};
-    Boolean[] booleanArray = new Boolean[]{true, false};
+    boolean[] booleanArray = new boolean[]{true, false};
 
-    Attributes.Builder attributes = Attributes.builder();
+    AttributesBuilder attributes = Attributes.builder();
     attributes.put("testFloat", 5.5f);
     attributes.put("testInt", 10);
     attributes.put("testStringArray", stringArray);
@@ -440,8 +452,8 @@ public class TracerTest {
     SpanData spanData = allSpans.get(0);
     assertThat(spanData.getEvents()).hasSize(1);
 
-    List<SpanData.Event> timedEvents = spanData.getEvents();
-    assertThat(timedEvents).element(0).extracting(SpanData.Event::getName).isEqualTo(event);
+    List<EventData> timedEvents = spanData.getEvents();
+    assertThat(timedEvents).element(0).extracting(EventData::getName).isEqualTo(event);
     assertThat(timedEvents.get(0).getAttributes()).isEqualTo(attributes.build());
   }
 
@@ -576,29 +588,37 @@ public class TracerTest {
   }
 
   private Tracer createTracer(List<SpanData> exportTo) {
-    TracerSdkManagement tracerSdkManagement = OpenTelemetrySdk.getGlobalTracerManagement();
-    tracerSdkManagement.addSpanProcessor(SimpleSpanProcessor.builder(new SpanExporter() {
-      @Override
-      public CompletableResultCode export(Collection<SpanData> spans) {
-        exportTo.addAll(spans);
-        return CompletableResultCode.ofSuccess();
-      }
+    ContextPropagators propagators =
+      ContextPropagators.create((W3CTraceContextPropagator.getInstance()));
+    SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
+      .addSpanProcessor(SimpleSpanProcessor.create(new SpanExporter() {
+        @Override
+        public CompletableResultCode export(Collection<SpanData> spans) {
+          exportTo.addAll(spans);
+          return CompletableResultCode.ofSuccess();
+        }
 
-      @Override public CompletableResultCode flush() {
-        return CompletableResultCode.ofSuccess();
-      }
+        @Override public CompletableResultCode flush() {
+          return CompletableResultCode.ofSuccess();
+        }
 
-      @Override
-      public CompletableResultCode shutdown() {
-        return CompletableResultCode.ofSuccess();
-      }
-    }).build());
+        @Override
+        public CompletableResultCode shutdown() {
+          return CompletableResultCode.ofSuccess();
+        }
+      }))
+      .build();
 
-    ContextPropagators propagators = DefaultContextPropagators.builder()
-      .addTextMapPropagator(HttpTraceContext.getInstance()).build();
+    OpenTelemetrySdk openTelemetrySdk = OpenTelemetrySdk.builder()
+      .setTracerProvider(sdkTracerProvider)
+      .setPropagators(propagators)
+      .buildAndRegisterGlobal();
+
+    Runtime.getRuntime()
+      .addShutdownHook(new Thread(sdkTracerProvider::close));
 
     return new OpenTelemetryTracer(
-      OpenTelemetry.getGlobalTracer("get"),
+      openTelemetrySdk.getTracer("test"),
       propagators.getTextMapPropagator());
   }
 }

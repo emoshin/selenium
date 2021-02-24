@@ -24,9 +24,6 @@ import static org.openqa.selenium.Platform.ANDROID;
 import static org.openqa.selenium.WaitingConditions.elementTextToEqual;
 import static org.openqa.selenium.support.ui.ExpectedConditions.not;
 import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOf;
-import static org.openqa.selenium.testing.drivers.Browser.CHROME;
-import static org.openqa.selenium.testing.drivers.Browser.EDGIUM;
-import static org.openqa.selenium.testing.drivers.Browser.EDGE_HTML;
 import static org.openqa.selenium.testing.drivers.Browser.LEGACY_FIREFOX_XPI;
 import static org.openqa.selenium.testing.drivers.Browser.HTMLUNIT;
 import static org.openqa.selenium.testing.drivers.Browser.SAFARI;
@@ -127,8 +124,6 @@ public class UploadTest extends JUnit4TestBase {
   }
 
   @Test
-  @Ignore(CHROME)
-  @Ignore(EDGIUM)
   @Ignore(HTMLUNIT)
   public void testClickFileInput() {
     driver.get(pages.uploadPage);
@@ -156,7 +151,6 @@ public class UploadTest extends JUnit4TestBase {
   @Test
   @Ignore(value = SAFARI, reason = "Hangs forever in sendKeys")
   @Ignore(HTMLUNIT)
-  @NotYetImplemented(EDGE_HTML)
   @NeedsFreshDriver
   public void testUploadingWithInvisibleFileInput() {
     driver.get(appServer.whereIs("upload_invisible.html"));
@@ -176,7 +170,6 @@ public class UploadTest extends JUnit4TestBase {
   @Test
   @Ignore(LEGACY_FIREFOX_XPI)
   @Ignore(HTMLUNIT)
-  @NotYetImplemented(EDGE_HTML)
   @NoDriverBeforeTest
   @NoDriverAfterTest
   public void testUploadingWithInvisibleFileInputWhenStrictFileInteractabilityIsOn() {

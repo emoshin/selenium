@@ -17,16 +17,11 @@
 
 package org.openqa.selenium.grid.sessionqueue;
 
-import static org.openqa.selenium.remote.http.Contents.reader;
-import static org.openqa.selenium.remote.http.Route.combine;
-import static org.openqa.selenium.remote.http.Route.delete;
-import static org.openqa.selenium.remote.http.Route.get;
-import static org.openqa.selenium.remote.http.Route.post;
-import static org.openqa.selenium.remote.tracing.Tags.EXCEPTION;
-
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.SessionNotCreatedException;
 import org.openqa.selenium.grid.data.RequestId;
+import org.openqa.selenium.grid.security.RequiresSecretFilter;
+import org.openqa.selenium.grid.security.Secret;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.remote.NewSessionPayload;
 import org.openqa.selenium.remote.http.HttpRequest;
@@ -44,32 +39,47 @@ import java.io.IOException;
 import java.io.Reader;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.logging.Logger;
+
+import static org.openqa.selenium.remote.http.Contents.reader;
+import static org.openqa.selenium.remote.http.Route.combine;
+import static org.openqa.selenium.remote.http.Route.delete;
+import static org.openqa.selenium.remote.http.Route.get;
+import static org.openqa.selenium.remote.http.Route.post;
+import static org.openqa.selenium.remote.tracing.Tags.EXCEPTION;
 
 public abstract class NewSessionQueuer implements HasReadyState, Routable {
 
-  private static final Logger LOG = Logger.getLogger(NewSessionQueuer.class.getName());
-  private final Route routes;
   protected final Tracer tracer;
+  private final Route routes;
 
-  protected NewSessionQueuer(Tracer tracer) {
+  protected NewSessionQueuer(Tracer tracer, Secret registrationSecret) {
     this.tracer = Require.nonNull("Tracer", tracer);
 
+    Require.nonNull("Registration secret", registrationSecret);
+    RequiresSecretFilter requiresSecret = new RequiresSecretFilter(registrationSecret);
+
     routes = combine(
-        post("/session")
-            .to(() -> this::addToQueue),
-        post("/se/grid/newsessionqueuer/session")
-            .to(() -> new AddToSessionQueue(tracer, this)),
-        post("/se/grid/newsessionqueuer/session/retry/{requestId}")
-            .to(params -> new AddBackToSessionQueue(tracer, this, requestIdFrom(params))),
-        get("/se/grid/newsessionqueuer/session/{requestId}")
-            .to(params -> new RemoveFromSessionQueue(tracer, this, requestIdFrom(params))),
-        delete("/se/grid/newsessionqueuer/queue")
-            .to(() -> new ClearSessionQueue(tracer, this)));
+
+      post("/session")
+        .to(() -> this::addToQueue),
+      post("/se/grid/newsessionqueuer/session")
+        .to(() -> new AddToSessionQueue(tracer, this)),
+      post("/se/grid/newsessionqueuer/session/retry/{requestId}")
+        .to(params -> new AddBackToSessionQueue(tracer, this, requestIdFrom(params)))
+        .with(requiresSecret),
+      get("/se/grid/newsessionqueuer/session/{requestId}")
+        .to(params -> new RemoveFromSessionQueue(tracer, this, requestIdFrom(params)))
+        .with(requiresSecret),
+      get("/se/grid/newsessionqueuer/queue")
+        .to(() -> new GetSessionQueue(tracer, this)),
+      delete("/se/grid/newsessionqueuer/queue")
+        .to(() -> new ClearSessionQueue(tracer, this))
+        .with(requiresSecret));
   }
 
   private RequestId requestIdFrom(Map<String, String> params) {
@@ -80,29 +90,28 @@ public abstract class NewSessionQueuer implements HasReadyState, Routable {
     try (Span span = tracer.getCurrentContext().createSpan("newsession_queuer.validate")) {
       Map<String, EventAttributeValue> attributeMap = new HashMap<>();
       try (
-          Reader reader = reader(request);
-          NewSessionPayload payload = NewSessionPayload.create(reader)) {
+        Reader reader = reader(request);
+        NewSessionPayload payload = NewSessionPayload.create(reader)) {
         Objects.requireNonNull(payload, "Requests to process must be set.");
         attributeMap.put("request.payload", EventAttribute.setValue(payload.toString()));
 
         Iterator<Capabilities> iterator = payload.stream().iterator();
         if (!iterator.hasNext()) {
-          SessionNotCreatedException
-              exception =
-              new SessionNotCreatedException("No capabilities found");
+          SessionNotCreatedException exception =
+            new SessionNotCreatedException("No capabilities found");
           EXCEPTION.accept(attributeMap, exception);
-          attributeMap.put(AttributeKey.EXCEPTION_MESSAGE.getKey(),
-                           EventAttribute.setValue(exception.getMessage()));
+          attributeMap.put(
+            AttributeKey.EXCEPTION_MESSAGE.getKey(), EventAttribute.setValue(exception.getMessage()));
           span.addEvent(AttributeKey.EXCEPTION_EVENT.getKey(), attributeMap);
           throw exception;
         }
       } catch (IOException e) {
         SessionNotCreatedException exception = new SessionNotCreatedException(e.getMessage(), e);
         EXCEPTION.accept(attributeMap, exception);
-        attributeMap.put(AttributeKey.EXCEPTION_MESSAGE.getKey(),
-                         EventAttribute.setValue(
-                             "IOException while reading the request payload. " + exception
-                                 .getMessage()));
+        String errorMessage = "IOException while reading the request payload. " +
+          exception.getMessage();
+        attributeMap.put(
+          AttributeKey.EXCEPTION_MESSAGE.getKey(), EventAttribute.setValue(errorMessage));
         span.addEvent(AttributeKey.EXCEPTION_EVENT.getKey(), attributeMap);
         throw exception;
       }
@@ -116,6 +125,8 @@ public abstract class NewSessionQueuer implements HasReadyState, Routable {
   public abstract Optional<HttpRequest> remove(RequestId reqId);
 
   public abstract int clearQueue();
+
+  public abstract List<Object> getQueueContents();
 
   @Override
   public boolean matches(HttpRequest req) {

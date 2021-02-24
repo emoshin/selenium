@@ -18,7 +18,6 @@
 package org.openqa.selenium;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -107,11 +106,7 @@ public interface Capabilities {
    * {@code this}.
    */
   default Capabilities merge(Capabilities other) {
-    HashMap<String, Object> map = new HashMap<>(asMap());
-    if (other != null) {
-      map.putAll(other.asMap());
-    }
-    return new ImmutableCapabilities(map);
+    return new ImmutableCapabilities(new MutableCapabilities(this).merge(other));
   }
 
   default Set<String> getCapabilityNames() {

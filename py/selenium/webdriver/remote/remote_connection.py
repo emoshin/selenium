@@ -139,7 +139,7 @@ class RemoteConnection(object):
             pool_manager_init_args['cert_reqs'] = 'CERT_REQUIRED'
             pool_manager_init_args['ca_certs'] = self._ca_certs
 
-        return urllib3.PoolManager(**pool_manager_init_args) if self._proxy_url is None else \
+        return urllib3.PoolManager(**pool_manager_init_args) if not self._proxy_url else \
             urllib3.ProxyManager(self._proxy_url, **pool_manager_init_args)
 
     def __init__(self, remote_server_addr, keep_alive=False, resolve_ip=None, ignore_proxy=False):
@@ -223,6 +223,10 @@ class RemoteConnection(object):
                 ('GET', '/session/$sessionId/element/$id/attribute/$name'),
             Command.GET_ELEMENT_PROPERTY:
                 ('GET', '/session/$sessionId/element/$id/property/$name'),
+            Command.GET_ELEMENT_ARIA_ROLE:
+                ('GET', '/session/$sessionId/element/$id/computedrole'),
+            Command.GET_ELEMENT_ARIA_LABEL:
+                ('GET', '/session/$sessionId/element/$id/computedlabel'),
             Command.GET_ALL_COOKIES: ('GET', '/session/$sessionId/cookie'),
             Command.ADD_COOKIE: ('POST', '/session/$sessionId/cookie'),
             Command.GET_COOKIE: ('GET', '/session/$sessionId/cookie/$name'),
@@ -387,7 +391,7 @@ class RemoteConnection(object):
         command_info = self._commands[command]
         assert command_info is not None, 'Unrecognised command %s' % command
         path = string.Template(command_info[1]).substitute(params)
-        if hasattr(self, 'w3c') and self.w3c and isinstance(params, dict) and 'sessionId' in params:
+        if isinstance(params, dict) and 'sessionId' in params:
             del params['sessionId']
         data = utils.dump_json(params)
         url = f"{self._url}{path}"
@@ -434,7 +438,7 @@ class RemoteConnection(object):
             if 399 < statuscode <= 500:
                 return {'status': statuscode, 'value': data}
             content_type = []
-            if resp.getheader('Content-Type') is not None:
+            if resp.getheader('Content-Type'):
                 content_type = resp.getheader('Content-Type').split(';')
             if not any([x.startswith('image/png') for x in content_type]):
 

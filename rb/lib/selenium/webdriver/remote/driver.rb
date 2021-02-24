@@ -29,7 +29,6 @@ module Selenium
       class Driver < WebDriver::Driver
         include DriverExtensions::UploadsFiles
         include DriverExtensions::HasSessionId
-        include DriverExtensions::Rotatable
         include DriverExtensions::HasRemoteStatus
         include DriverExtensions::HasWebStorage
 
@@ -44,6 +43,12 @@ module Selenium
           end
           opts[:url] ||= "http://#{Platform.localhost}:4444/wd/hub"
           super
+        end
+
+        def print_page(**options)
+          options[:page_ranges] &&= Array(options[:page_ranges])
+
+          @bridge.print_page(options)
         end
       end # Driver
     end # Remote

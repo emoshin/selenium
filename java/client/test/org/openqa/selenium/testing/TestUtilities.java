@@ -25,6 +25,11 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.htmlunit.HtmlUnitDriver;
 import org.openqa.selenium.remote.CapabilityType;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -53,6 +58,10 @@ public class TestUtilities {
 
   public static boolean isFirefox(WebDriver driver) {
     return getUserAgent(driver).contains("Firefox");
+  }
+
+  public static boolean isFirefoxVersionOlderThan(int version, WebDriver driver) {
+    return isFirefox(driver) && getFirefoxVersion(driver) < version;
   }
 
   public static boolean isInternetExplorer(WebDriver driver) {
@@ -177,5 +186,16 @@ public class TestUtilities {
 
   public static boolean isOnGitHubActions() {
     return Boolean.parseBoolean(System.getenv("GITHUB_ACTIONS"));
+  }
+
+  public static File createTmpFile(String content) {
+    try {
+      File f = File.createTempFile("webdriver", "tmp");
+      f.deleteOnExit();
+      Files.write(f.toPath(), content.getBytes(StandardCharsets.UTF_8));
+      return f;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }

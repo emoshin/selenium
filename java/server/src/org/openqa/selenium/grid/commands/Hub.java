@@ -31,6 +31,7 @@ import org.openqa.selenium.grid.graphql.GraphqlHandler;
 import org.openqa.selenium.grid.log.LoggingOptions;
 import org.openqa.selenium.grid.router.ProxyCdpIntoGrid;
 import org.openqa.selenium.grid.router.Router;
+import org.openqa.selenium.grid.security.Secret;
 import org.openqa.selenium.grid.security.SecretOptions;
 import org.openqa.selenium.grid.server.BaseServerOptions;
 import org.openqa.selenium.grid.server.EventBusOptions;
@@ -43,13 +44,10 @@ import org.openqa.selenium.grid.sessionqueue.NewSessionQueuer;
 import org.openqa.selenium.grid.sessionqueue.config.NewSessionQueueOptions;
 import org.openqa.selenium.grid.sessionqueue.local.LocalNewSessionQueue;
 import org.openqa.selenium.grid.sessionqueue.local.LocalNewSessionQueuer;
-import org.openqa.selenium.grid.web.ClassPathResource;
 import org.openqa.selenium.grid.web.CombinedHandler;
-import org.openqa.selenium.grid.web.NoHandler;
-import org.openqa.selenium.grid.web.ResourceHandler;
+import org.openqa.selenium.grid.web.GridUiRoute;
 import org.openqa.selenium.grid.web.RoutableHttpClientFactory;
 import org.openqa.selenium.internal.Require;
-import org.openqa.selenium.json.Json;
 import org.openqa.selenium.remote.http.Contents;
 import org.openqa.selenium.remote.http.HttpClient;
 import org.openqa.selenium.remote.http.HttpHandler;
@@ -65,7 +63,6 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR;
-import static java.net.HttpURLConnection.HTTP_MOVED_PERM;
 import static java.net.HttpURLConnection.HTTP_OK;
 import static org.openqa.selenium.grid.config.StandardGridRoles.EVENT_BUS_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.HTTPD_ROLE;
@@ -73,7 +70,6 @@ import static org.openqa.selenium.grid.config.StandardGridRoles.ROUTER_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.SESSION_QUEUER_ROLE;
 import static org.openqa.selenium.grid.config.StandardGridRoles.SESSION_QUEUE_ROLE;
 import static org.openqa.selenium.remote.http.Route.combine;
-import static org.openqa.selenium.remote.http.Route.get;
 
 @AutoService(CliCommand.class)
 public class Hub extends TemplateGridServerCommand {
@@ -130,6 +126,7 @@ public class Hub extends TemplateGridServerCommand {
 
     BaseServerOptions serverOptions = new BaseServerOptions(config);
     SecretOptions secretOptions = new SecretOptions(config);
+    Secret secret = secretOptions.getRegistrationSecret();
 
     URL externalUrl;
     try {
@@ -150,7 +147,7 @@ public class Hub extends TemplateGridServerCommand {
       bus,
       newSessionQueueOptions.getSessionRequestRetryInterval(),
       newSessionQueueOptions.getSessionRequestTimeout());
-    NewSessionQueuer queuer = new LocalNewSessionQueuer(tracer, bus, sessionRequests);
+    NewSessionQueuer queuer = new LocalNewSessionQueuer(tracer, bus, sessionRequests, secret);
     handler.addHandler(queuer);
 
     Distributor distributor = new LocalDistributor(
@@ -159,11 +156,16 @@ public class Hub extends TemplateGridServerCommand {
       clientFactory,
       sessions,
       queuer,
-      secretOptions.getRegistrationSecret());
+      secret);
     handler.addHandler(distributor);
 
     Router router = new Router(tracer, clientFactory, sessions, queuer, distributor);
-    GraphqlHandler graphqlHandler = new GraphqlHandler(tracer, distributor, serverOptions.getExternalUri());
+    GraphqlHandler graphqlHandler = new GraphqlHandler(
+      tracer,
+      distributor,
+      queuer,
+      serverOptions.getExternalUri(),
+      getServerVersion());
     HttpHandler readinessCheck = req -> {
       boolean ready = router.isReady() && bus.isReady();
       return new HttpResponse()
@@ -171,23 +173,13 @@ public class Hub extends TemplateGridServerCommand {
         .setContent(Contents.utf8String("Router is " + ready));
     };
 
-    Routable ui;
-    URL uiRoot = getClass().getResource("/javascript/grid-ui/build");
-    if (uiRoot != null) {
-      ResourceHandler
-        uiHandler = new ResourceHandler(new ClassPathResource(uiRoot, "javascript/grid-ui/build"));
-      ui = Route.combine(
-        get("/grid/console").to(() -> req -> new HttpResponse().setStatus(HTTP_MOVED_PERM).addHeader("Location", "/ui/index.html")),
-        Route.prefix("/ui/").to(Route.matching(req -> true).to(() -> uiHandler)));
-    } else {
-      Json json = new Json();
-      ui = Route.matching(req -> false).to(() -> new NoHandler(json));
-    }
+    Routable ui = new GridUiRoute();
 
     HttpHandler httpHandler = combine(
       ui,
       router.with(networkOptions.getSpecComplianceChecks()),
       Route.prefix("/wd/hub").to(combine(router.with(networkOptions.getSpecComplianceChecks()))),
+      Route.options("/graphql").to(() -> graphqlHandler),
       Route.post("/graphql").to(() -> graphqlHandler),
       Route.get("/readyz").to(() -> readinessCheck));
 
@@ -200,11 +192,11 @@ public class Hub extends TemplateGridServerCommand {
 
     Server<?> server = asServer(config).start();
 
+    LOG.info(String.format("Started Selenium Hub %s: %s", getServerVersion(), server.getUrl()));
+  }
+
+  private String getServerVersion() {
     BuildInfo info = new BuildInfo();
-    LOG.info(String.format(
-      "Started Selenium hub %s (revision %s): %s",
-      info.getReleaseLabel(),
-      info.getBuildRevision(),
-      server.getUrl()));
+    return String.format("%s (revision %s)", info.getReleaseLabel(), info.getBuildRevision());
   }
 }

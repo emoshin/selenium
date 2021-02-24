@@ -73,6 +73,7 @@ import static org.openqa.selenium.remote.DriverCommand.SET_SESSION_STORAGE_ITEM;
 import static org.openqa.selenium.remote.DriverCommand.SET_TIMEOUT;
 import static org.openqa.selenium.remote.DriverCommand.SUBMIT_ELEMENT;
 import static org.openqa.selenium.remote.DriverCommand.UPLOAD_FILE;
+import static org.openqa.selenium.remote.DriverCommand.PRINT_PAGE;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -154,6 +155,8 @@ public class W3CHttpCommandCodec extends AbstractHttpCommandCodec {
     defineCommand(GET_ALERT_TEXT, get(alert + "/text"));
     defineCommand(SET_ALERT_VALUE, post(alert + "/text"));
 
+    defineCommand(PRINT_PAGE, post(sessionId + "/print"));
+
     defineCommand(UPLOAD_FILE, post(sessionId + "/se/file"));
 
     defineCommand(GET_ACTIVE_ELEMENT, get(sessionId + "/element/active"));
@@ -212,27 +215,27 @@ public class W3CHttpCommandCodec extends AbstractHttpCommandCodec {
       case FIND_ELEMENT:
       case FIND_ELEMENTS:
         String using = (String) parameters.get("using");
-        String value = (String) parameters.get("value");
+        Object value = parameters.get("value");
 
-        switch (using) {
-          case "class name":
-            if (value.matches(".*\\s.*")) {
-              throw new InvalidSelectorException("Compound class names not permitted");
-            }
-            return amendLocatorToCssSelector(parameters, "." + cssEscape(value));
+        if (value instanceof String) {
+          String stringValue = (String) value;
+          switch (using) {
+            case "class name":
+              if (stringValue.matches(".*\\s.*")) {
+                throw new InvalidSelectorException("Compound class names not permitted");
+              }
+              return amendLocatorToCssSelector(parameters, "." + cssEscape(stringValue));
 
-          case "id":
-            return amendLocatorToCssSelector(parameters, "#" + cssEscape(value));
+            case "id":
+              return amendLocatorToCssSelector(parameters, "#" + cssEscape(stringValue));
 
-          case "name":
-            return amendLocatorToCssSelector(parameters, "*[name='" + value + "']");
+            case "name":
+              return amendLocatorToCssSelector(parameters, "*[name='" + stringValue + "']");
 
-          case "tag name":
-            return amendLocatorToCssSelector(parameters, cssEscape(value));
-
-          default:
-            // Do nothing
-            break;
+            default:
+              // Do nothing
+              break;
+          }
         }
         return parameters;
 

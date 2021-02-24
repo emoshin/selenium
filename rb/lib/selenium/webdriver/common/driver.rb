@@ -53,10 +53,6 @@ module Selenium
             Firefox::Driver.new(**opts)
           when :edge
             Edge::Driver.new(**opts)
-          when :edge_chrome
-            EdgeChrome::Driver.new(**opts)
-          when :edge_html
-            EdgeHtml::Driver.new(**opts)
           when :remote
             Remote::Driver.new(**opts)
           else
@@ -80,6 +76,16 @@ module Selenium
 
       def inspect
         format '#<%<class>s:0x%<hash>x browser=%<browser>s>', class: self.class, hash: hash * 2, browser: bridge.browser.inspect
+      end
+
+      #
+      # information about whether a remote end is in a state in which it can create new sessions,
+      # and may include additional meta information.
+      #
+      # @return [Hash]
+      #
+      def status
+        @bridge.status
       end
 
       #
@@ -298,7 +304,7 @@ module Selenium
       def create_bridge(**opts)
         opts[:url] ||= service_url(opts)
         caps = opts.delete(:capabilities)
-        # Note: This is deprecated
+        # NOTE: This is deprecated
         cap_array = caps.is_a?(Hash) ? [caps] : Array(caps)
 
         desired_capabilities = opts.delete(:desired_capabilities)

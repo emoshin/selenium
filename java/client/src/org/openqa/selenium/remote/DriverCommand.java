@@ -25,6 +25,7 @@ import org.openqa.selenium.Dimension;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.WindowType;
 import org.openqa.selenium.interactions.Sequence;
+import org.openqa.selenium.print.PrintOptions;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -72,11 +73,11 @@ public interface DriverCommand {
   String DELETE_ALL_COOKIES = "deleteAllCookies";
 
   String FIND_ELEMENT = "findElement";
-  static CommandPayload FIND_ELEMENT(String strategy, String value) {
+  static CommandPayload FIND_ELEMENT(String strategy, Object value) {
     return new CommandPayload(FIND_ELEMENT, ImmutableMap.of("using", strategy, "value", value));
   }
   String FIND_ELEMENTS = "findElements";
-  static CommandPayload FIND_ELEMENTS(String strategy, String value) {
+  static CommandPayload FIND_ELEMENTS(String strategy, Object value) {
     return new CommandPayload(FIND_ELEMENTS, ImmutableMap.of("using", strategy, "value", value));
   }
   String FIND_CHILD_ELEMENT = "findChildElement";
@@ -225,7 +226,13 @@ public interface DriverCommand {
   }
   String SET_ALERT_CREDENTIALS = "setAlertCredentials";
 
+  String GET_TIMEOUTS = "getTimeouts";
   String SET_TIMEOUT = "setTimeout";
+
+  String PRINT_PAGE = "printPage";
+  static CommandPayload PRINT_PAGE(PrintOptions options) {
+    return new CommandPayload(PRINT_PAGE, ImmutableMap.of("options", options));
+  }
 
   @Deprecated
   static CommandPayload SET_IMPLICIT_WAIT_TIMEOUT(long time, TimeUnit unit) {

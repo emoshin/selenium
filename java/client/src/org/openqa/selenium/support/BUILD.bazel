@@ -10,6 +10,9 @@ java_export(
         "ThreadGuard.java",
     ],
     maven_coordinates = "org.seleniumhq.selenium:selenium-support:%s" % SE_VERSION,
+    opens_to = [
+        "org.openqa.selenium.json",
+    ],
     pom_template = "//java/client/src/org/openqa/selenium:template-pom",
     visibility = ["//visibility:public"],
     exports = [

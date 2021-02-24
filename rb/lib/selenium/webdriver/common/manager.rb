@@ -46,11 +46,14 @@ module Selenium
         raise ArgumentError, 'name is required' unless opts[:name]
         raise ArgumentError, 'value is required' unless opts[:value]
 
-        opts[:path] ||= '/'
+        # NOTE: This is required because of https://bugs.chromium.org/p/chromedriver/issues/detail?id=3732
         opts[:secure] ||= false
 
         same_site = opts.delete(:same_site)
         opts[:sameSite] = same_site if same_site
+
+        http_only = opts.delete(:http_only)
+        opts[:httpOnly] = http_only if http_only
 
         obj = opts.delete(:expires)
         opts[:expiry] = seconds_from(obj).to_i if obj
@@ -106,6 +109,7 @@ module Selenium
       #
 
       def logs
+        WebDriver.logger.deprecate('Manager#logs', 'Chrome::Driver#logs')
         @logs ||= Logs.new(@bridge)
       end
 
@@ -174,6 +178,7 @@ module Selenium
           domain: cookie['domain'] && strip_port(cookie['domain']),
           expires: cookie['expiry'] && datetime_at(cookie['expiry']),
           same_site: cookie['sameSite'],
+          http_only: cookie['httpOnly'],
           secure: cookie['secure']
         }
       end

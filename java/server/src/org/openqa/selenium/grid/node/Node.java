@@ -17,6 +17,8 @@
 
 package org.openqa.selenium.grid.node;
 
+import com.google.common.collect.ImmutableMap;
+import org.openqa.selenium.BuildInfo;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.NoSuchSessionException;
 import org.openqa.selenium.grid.data.CreateSessionRequest;
@@ -34,6 +36,7 @@ import org.openqa.selenium.remote.http.HttpRequest;
 import org.openqa.selenium.remote.http.HttpResponse;
 import org.openqa.selenium.remote.http.Routable;
 import org.openqa.selenium.remote.http.Route;
+import org.openqa.selenium.remote.locators.CustomLocator;
 import org.openqa.selenium.remote.tracing.SpanDecorator;
 import org.openqa.selenium.remote.tracing.Tracer;
 import org.openqa.selenium.status.HasReadyState;
@@ -42,6 +45,11 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.openqa.selenium.remote.HttpSessionId.getSessionId;
 import static org.openqa.selenium.remote.http.Contents.asJson;
@@ -100,6 +108,9 @@ import static org.openqa.selenium.remote.http.Route.post;
  */
 public abstract class Node implements HasReadyState, Routable {
 
+  private static final Logger LOG = Logger.getLogger(Node.class.getName());
+  private static final BuildInfo INFO = new BuildInfo();
+  private static final ImmutableMap<String, String> OS_INFO = loadOsInfo();
   protected final Tracer tracer;
   private final NodeId id;
   private final URI uri;
@@ -114,40 +125,58 @@ public abstract class Node implements HasReadyState, Routable {
 
     RequiresSecretFilter requiresSecret = new RequiresSecretFilter(registrationSecret);
 
+    Set<CustomLocator> customLocators = StreamSupport.stream(
+      ServiceLoader.load(CustomLocator.class).spliterator(),
+      false)
+      .collect(Collectors.toSet());
+
+    if (!customLocators.isEmpty()) {
+      String names = customLocators.stream().map(CustomLocator::getLocatorName).collect(Collectors.joining(", "));
+      LOG.info("Binding additional locator mechanisms: " + names);
+    }
+
     Json json = new Json();
     routes = combine(
-        // "getSessionId" is aggressive about finding session ids, so this needs to be the last
-        // route that is checked.
-        matching(req -> getSessionId(req.getUri()).map(SessionId::new).map(this::isSessionOwner).orElse(false))
-            .to(() -> new ForwardWebDriverCommand(this))
-            .with(spanDecorator("node.forward_command")),
-        post("/session/{sessionId}/file")
-            .to(params -> new UploadFile(this, sessionIdFrom(params)))
-            .with(spanDecorator("node.upload_file")),
-        post("/session/{sessionId}/se/file")
-          .to(params -> new UploadFile(this, sessionIdFrom(params)))
-          .with(spanDecorator("node.upload_file")),
-        get("/se/grid/node/owner/{sessionId}")
-            .to(params -> new IsSessionOwner(this, sessionIdFrom(params)))
-            .with(spanDecorator("node.is_session_owner").andThen(requiresSecret)),
-        delete("/se/grid/node/session/{sessionId}")
-            .to(params -> new StopNodeSession(this, sessionIdFrom(params)))
-            .with(spanDecorator("node.stop_session").andThen(requiresSecret)),
-        get("/se/grid/node/session/{sessionId}")
-            .to(params -> new GetNodeSession(this, sessionIdFrom(params)))
-            .with(spanDecorator("node.get_session").andThen(requiresSecret)),
-        post("/se/grid/node/session")
-            .to(() -> new NewNodeSession(this, json))
-            .with(spanDecorator("node.new_session").andThen(requiresSecret)),
-        post("/se/grid/node/drain")
-            .to(() -> new Drain(this, json))
-            .with(spanDecorator("node.drain").andThen(requiresSecret)),
-        get("/se/grid/node/status")
-            .to(() -> req -> new HttpResponse().setContent(asJson(getStatus())))
-            .with(spanDecorator("node.node_status")),
-        get("/status")
-            .to(() -> new StatusHandler(this))
-            .with(spanDecorator("node.status")));
+      // "getSessionId" is aggressive about finding session ids, so this needs to be the last
+      // route that is checked.
+      matching(req -> getSessionId(req.getUri()).map(SessionId::new).map(this::isSessionOwner).orElse(false))
+        .to(() -> new ForwardWebDriverCommand(this))
+        .with(spanDecorator("node.forward_command")),
+      new CustomLocatorHandler(this, registrationSecret, customLocators),
+      post("/session/{sessionId}/file")
+        .to(params -> new UploadFile(this, sessionIdFrom(params)))
+        .with(spanDecorator("node.upload_file")),
+      post("/session/{sessionId}/se/file")
+        .to(params -> new UploadFile(this, sessionIdFrom(params)))
+        .with(spanDecorator("node.upload_file")),
+      get("/se/grid/node/owner/{sessionId}")
+        .to(params -> new IsSessionOwner(this, sessionIdFrom(params)))
+        .with(spanDecorator("node.is_session_owner").andThen(requiresSecret)),
+      delete("/se/grid/node/session/{sessionId}")
+        .to(params -> new StopNodeSession(this, sessionIdFrom(params)))
+        .with(spanDecorator("node.stop_session").andThen(requiresSecret)),
+      get("/se/grid/node/session/{sessionId}")
+        .to(params -> new GetNodeSession(this, sessionIdFrom(params)))
+        .with(spanDecorator("node.get_session").andThen(requiresSecret)),
+      post("/se/grid/node/session")
+        .to(() -> new NewNodeSession(this, json))
+        .with(spanDecorator("node.new_session").andThen(requiresSecret)),
+      post("/se/grid/node/drain")
+        .to(() -> new Drain(this, json))
+        .with(spanDecorator("node.drain").andThen(requiresSecret)),
+      get("/se/grid/node/status")
+        .to(() -> req -> new HttpResponse().setContent(asJson(getStatus())))
+        .with(spanDecorator("node.node_status")),
+      get("/status")
+        .to(() -> new StatusHandler(this))
+        .with(spanDecorator("node.status")));
+  }
+
+  private static ImmutableMap<String, String> loadOsInfo() {
+    return ImmutableMap.of(
+      "arch", System.getProperty("os.arch"),
+      "name", System.getProperty("os.name"),
+      "version", System.getProperty("os.version"));
   }
 
   private SessionId sessionIdFrom(Map<String, String> params) {
@@ -164,6 +193,14 @@ public abstract class Node implements HasReadyState, Routable {
 
   public URI getUri() {
     return uri;
+  }
+
+  public String getNodeVersion() {
+    return String.format("%s (revision %s)", INFO.getReleaseLabel(), INFO.getBuildRevision());
+  }
+
+  public ImmutableMap<String, String> getOsInfo() {
+    return OS_INFO;
   }
 
   public abstract Optional<CreateSessionResponse> newSession(CreateSessionRequest sessionRequest);

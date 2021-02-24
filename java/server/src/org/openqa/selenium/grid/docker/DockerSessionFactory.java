@@ -114,7 +114,9 @@ public class DockerSessionFactory implements SessionFactory {
   @Override
   public boolean test(Capabilities capabilities) {
     return stereotype.getCapabilityNames().stream()
-        .map(name -> Objects.equals(stereotype.getCapability(name), capabilities.getCapability(name)))
+        .map(
+          name ->
+            Objects.equals(stereotype.getCapability(name), capabilities.getCapability(name)))
         .reduce(Boolean::logicalAnd)
         .orElse(false);
   }
@@ -124,8 +126,8 @@ public class DockerSessionFactory implements SessionFactory {
     LOG.info("Starting session for " + sessionRequest.getCapabilities());
     int port = PortProber.findFreePort();
     URL remoteAddress = getUrl(port);
-    HttpClient client = clientFactory.createClient(remoteAddress);
 
+    HttpClient client = clientFactory.createClient(remoteAddress);
     try (Span span = tracer.getCurrentContext().createSpan("docker_session_factory.apply")) {
       Map<String, EventAttributeValue> attributeMap = new HashMap<>();
       attributeMap.put(AttributeKey.LOGGER_CLASS.getKey(),
@@ -170,7 +172,9 @@ public class DockerSessionFactory implements SessionFactory {
       try {
         result = new ProtocolHandshake().createSession(client, command);
         response = result.createResponse();
-        attributeMap.put(AttributeKey.DRIVER_RESPONSE.getKey(), EventAttribute.setValue(response.toString()));
+        attributeMap.put(
+          AttributeKey.DRIVER_RESPONSE.getKey(),
+          EventAttribute.setValue(response.toString()));
       } catch (IOException | RuntimeException e) {
         span.setAttribute("error", true);
         span.setStatus(Status.CANCELLED);
@@ -204,8 +208,12 @@ public class DockerSessionFactory implements SessionFactory {
       Dialect downstream = sessionRequest.getDownstreamDialects().contains(result.getDialect()) ?
                            result.getDialect() :
                            W3C;
-      attributeMap.put(AttributeKey.DOWNSTREAM_DIALECT.getKey(), EventAttribute.setValue(downstream.toString()));
-      attributeMap.put(AttributeKey.DRIVER_RESPONSE.getKey(), EventAttribute.setValue(response.toString()));
+      attributeMap.put(
+        AttributeKey.DOWNSTREAM_DIALECT.getKey(),
+        EventAttribute.setValue(downstream.toString()));
+      attributeMap.put(
+        AttributeKey.DRIVER_RESPONSE.getKey(),
+        EventAttribute.setValue(response.toString()));
 
       span.addEvent("Docker driver service created session", attributeMap);
       LOG.fine(String.format(
@@ -281,7 +289,7 @@ public class DockerSessionFactory implements SessionFactory {
 
   private TimeZone getTimeZone(Capabilities sessionRequestCapabilities) {
     Optional<Object> timeZone =
-      ofNullable(getCapability(sessionRequestCapabilities, "timeZone"));
+      ofNullable(sessionRequestCapabilities.getCapability("se:timeZone"));
     if (timeZone.isPresent()) {
       String tz =  timeZone.get().toString();
       if (Arrays.asList(TimeZone.getAvailableIDs()).contains(tz)) {
@@ -293,7 +301,7 @@ public class DockerSessionFactory implements SessionFactory {
 
   private Dimension getScreenResolution(Capabilities sessionRequestCapabilities) {
     Optional<Object> screenResolution =
-      ofNullable(getCapability(sessionRequestCapabilities, "screenResolution"));
+      ofNullable(sessionRequestCapabilities.getCapability("se:screenResolution"));
     if (!screenResolution.isPresent()) {
       return null;
     }
@@ -317,18 +325,8 @@ public class DockerSessionFactory implements SessionFactory {
 
   private boolean recordVideoForSession(Capabilities sessionRequestCapabilities) {
     Optional<Object> recordVideo =
-      ofNullable(getCapability(sessionRequestCapabilities, "recordVideo"));
+      ofNullable(sessionRequestCapabilities.getCapability("se:recordVideo"));
     return recordVideo.isPresent() && Boolean.parseBoolean(recordVideo.get().toString());
-  }
-
-  private Object getCapability(Capabilities sessionRequestCapabilities, String capabilityName) {
-    Object rawSeleniumOptions = sessionRequestCapabilities.getCapability("se:options");
-    if (rawSeleniumOptions instanceof Map) {
-      @SuppressWarnings("unchecked")
-      Map<String, Object> seleniumOptions = (Map<String, Object>) rawSeleniumOptions;
-      return seleniumOptions.get(capabilityName);
-    }
-    return null;
   }
 
   private void saveSessionCapabilities(Capabilities sessionRequestCapabilities, String path) {
