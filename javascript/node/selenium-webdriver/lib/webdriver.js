@@ -35,6 +35,7 @@ const WebSocket = require('ws')
 const http = require('../http/index')
 const fs = require('fs')
 const { Capabilities } = require('./capabilities')
+const path = require('path')
 
 // Capability names that are defined in the W3C spec.
 const W3C_CAPABILITY_NAMES = new Set([
@@ -648,6 +649,7 @@ function filterNonW3CCaps(capabilities) {
  * @implements {IWebDriver}
  */
 class WebDriver {
+
   /**
    * @param {!(./session.Session|IThenable<!./session.Session>)} session Either
    *     a known session or a promise that will be resolved to a session.
@@ -1162,8 +1164,9 @@ class WebDriver {
     const seCdp = caps['map_'].get('se:cdp')
     const vendorInfo =
       caps['map_'].get(this.VENDOR_COMMAND_PREFIX + ':chromeOptions') ||
+      caps['map_'].get(this.VENDOR_CAPABILITY_PREFIX + ':edgeOptions') ||
       caps['map_'].get('moz:debuggerAddress') ||
-      new Map()
+      new Map();
     const debuggerUrl = seCdp || vendorInfo['debuggerAddress'] || vendorInfo
     this._wsUrl = await this.getWsUrl(debuggerUrl, target)
 
@@ -1196,12 +1199,21 @@ class WebDriver {
     if (target && cdpTargets.indexOf(target.toLowerCase()) === -1) {
       throw new error.InvalidArgumentError('invalid target value')
     }
-    let path = '/json/version'
-
+    let path
+    if (target === 'page') {
+      path = '/json'
+    } else {
+      path = '/json/version'
+    }
     let request = new http.Request('GET', path)
     let client = new http.HttpClient('http://' + debuggerAddress)
     let response = await client.send(request)
-    let url = JSON.parse(response.body)['webSocketDebuggerUrl']
+    let url
+    if (target.toLowerCase() === 'page') {
+      url = JSON.parse(response.body)[0]['webSocketDebuggerUrl']
+    } else {
+      url = JSON.parse(response.body)['webSocketDebuggerUrl']
+    }
 
     return url
   }
@@ -1362,7 +1374,7 @@ class WebDriver {
         .toString()
     } catch {
       mutationListener = fs
-        .readFileSync('./atoms/mutation-listener.js', 'utf-8')
+        .readFileSync(path.resolve(__dirname, './atoms/mutation-listener.js'), 'utf-8')
         .toString()
     }
 

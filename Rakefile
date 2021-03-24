@@ -56,11 +56,11 @@ def release_version
 end
 
 def google_storage_version
-  '4.0-beta-1'
+  '4.0-beta-3'
 end
 
 def version
-  "#{release_version}.0-beta-1"
+  "#{release_version}.0-beta-3"
 end
 
 # The build system used by webdriver is layered on top of rake, and we call it
@@ -121,6 +121,7 @@ JAVA_RELEASE_TARGETS = %w[
   //java/client/src/org/openqa/selenium/devtools/v88:v88.publish
   //java/client/src/org/openqa/selenium/devtools/v87:v87.publish
   //java/client/src/org/openqa/selenium/devtools/v86:v86.publish
+  //java/client/src/org/openqa/selenium/devtools/v85:v85.publish
   //java/client/src/org/openqa/selenium/devtools:devtools.publish
   //java/client/src/org/openqa/selenium/chromium:chromium.publish
   //java/client/src/org/openqa/selenium/chrome:chrome.publish

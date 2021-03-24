@@ -63,7 +63,6 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR;
-import static java.net.HttpURLConnection.HTTP_OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.openqa.selenium.json.Json.JSON_UTF_8;
 import static org.openqa.selenium.remote.http.Contents.asJson;
@@ -105,12 +104,13 @@ public class NewSessionCreationTest {
       registrationSecret);
 
     Distributor distributor = new LocalDistributor(
-        tracer,
-        events,
-        clientFactory,
-        sessions,
-        queuer,
-        registrationSecret);
+      tracer,
+      events,
+      clientFactory,
+      sessions,
+      queuer,
+      registrationSecret,
+      Duration.ofMinutes(5));
 
     Routable router = new Router(tracer, clientFactory, sessions, queuer, distributor)
       .with(new EnsureSpecCompliantHeaders(ImmutableList.of(), ImmutableSet.of()));
@@ -161,7 +161,7 @@ public class NewSessionCreationTest {
   }
 
   @Test
-  public void shouldRetryNewSessionRequestOnUnexpectedError() throws URISyntaxException {
+  public void shouldNotRetryNewSessionRequestOnUnexpectedError() throws URISyntaxException {
     Capabilities capabilities = new ImmutableCapabilities("browserName", "cheese");
     URI nodeUri = new URI("http://localhost:4444");
     CombinedHandler handler = new CombinedHandler();
@@ -186,13 +186,14 @@ public class NewSessionCreationTest {
       clientFactory,
       sessions,
       queuer,
-      registrationSecret);
+      registrationSecret,
+      Duration.ofMinutes(5));
     handler.addHandler(distributor);
 
     AtomicInteger count = new AtomicInteger();
 
     // First session creation attempt throws an error.
-    // Second attempt creates a session.
+    // Does not reach second attempt.
     TestSessionFactory sessionFactory = new TestSessionFactory((id, caps) -> {
       if (count.get() == 0) {
         count.incrementAndGet();
@@ -228,10 +229,9 @@ public class NewSessionCreationTest {
         "capabilities", ImmutableMap.of(
           "alwaysMatch", capabilities))));
 
-    try (HttpClient client = clientFactory.createClient(server.getUrl())) {
-      HttpResponse httpResponse = client.execute(request);
-      assertThat(httpResponse.getStatus()).isEqualTo(HTTP_OK);
-    }
-  }
 
+    HttpClient client = clientFactory.createClient(server.getUrl());
+    HttpResponse httpResponse = client.execute(request);
+    assertThat(httpResponse.getStatus()).isEqualTo(HTTP_INTERNAL_ERROR);
+  }
 }

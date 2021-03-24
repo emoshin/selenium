@@ -71,11 +71,13 @@ module Selenium
       def initialize(bridge: nil, listener: nil, **opts)
         @service = nil
         bridge ||= create_bridge(**opts)
+        add_extensions(bridge.browser)
         @bridge = listener ? Support::EventFiringBridge.new(bridge, listener) : bridge
       end
 
       def inspect
-        format '#<%<class>s:0x%<hash>x browser=%<browser>s>', class: self.class, hash: hash * 2, browser: bridge.browser.inspect
+        format '#<%<class>s:0x%<hash>x browser=%<browser>s>', class: self.class, hash: hash * 2,
+                                                              browser: bridge.browser.inspect
       end
 
       #
@@ -329,7 +331,7 @@ module Selenium
         bridge_opts = {http_client: opts.delete(:http_client), url: opts.delete(:url)}
         raise ArgumentError, "Unable to create a driver with parameters: #{opts}" unless opts.empty?
 
-        bridge = (respond_to?(:bridge_class) ? bridge_class : Remote::Bridge).new(**bridge_opts)
+        bridge = Remote::Bridge.new(**bridge_opts)
 
         bridge.create_session(capabilities)
         bridge
@@ -340,8 +342,9 @@ module Selenium
           if cap.is_a? Symbol
             cap = Remote::Capabilities.send(cap)
           elsif cap.is_a? Hash
+            new_message = 'Capabilities instance initialized with the Hash, or build values with Options class'
             WebDriver.logger.deprecate("passing a Hash value to :capabilities",
-                                       'Capabilities instance initialized with the Hash, or build values with Options class',
+                                       new_message,
                                        id: :capabilities_hash)
             cap = Remote::Capabilities.new(cap)
           elsif !cap.respond_to? :as_json
@@ -370,6 +373,20 @@ module Selenium
 
       def screenshot
         bridge.screenshot
+      end
+
+      def add_extensions(browser)
+        extensions = case browser
+                     when :chrome, :msedge
+                       Chrome::Driver::EXTENSIONS
+                     when :firefox
+                       Firefox::Driver::EXTENSIONS
+                     when :safari, :safari_technology_preview
+                       Safari::Driver::EXTENSIONS
+                     else
+                       []
+                     end
+        extensions.each { |extension| extend extension }
       end
     end # Driver
   end # WebDriver

@@ -17,12 +17,23 @@
 
 package org.openqa.selenium.grid.node.config;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonMap;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
+
 import com.google.common.collect.ImmutableMap;
+
 import org.assertj.core.api.Condition;
 import org.junit.Test;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.Platform;
+import org.openqa.selenium.SessionNotCreatedException;
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.chrome.ChromeDriverInfo;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxOptions;
@@ -33,6 +44,7 @@ import org.openqa.selenium.grid.config.TomlConfig;
 import org.openqa.selenium.grid.data.CreateSessionRequest;
 import org.openqa.selenium.grid.node.ActiveSession;
 import org.openqa.selenium.grid.node.SessionFactory;
+import org.openqa.selenium.internal.Either;
 import org.openqa.selenium.json.Json;
 
 import java.io.StringReader;
@@ -41,15 +53,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singletonMap;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 
 @SuppressWarnings("DuplicatedCode")
 public class NodeOptionsTest {
@@ -65,7 +68,7 @@ public class NodeOptionsTest {
     List<Capabilities> reported = new ArrayList<>();
     new NodeOptions(config).getSessionFactories(caps -> {
       reported.add(caps);
-      return Collections.emptySet();
+      return Collections.singleton(HelperFactory.create(config, caps));
     });
 
     ChromeDriverInfo chromeDriverInfo = new ChromeDriverInfo();
@@ -89,7 +92,7 @@ public class NodeOptionsTest {
     List<Capabilities> reported = new ArrayList<>();
     new NodeOptions(config).getSessionFactories(caps -> {
       reported.add(caps);
-      return Collections.emptySet();
+      return Collections.singleton(HelperFactory.create(config, caps));
     });
 
     assertThat(reported).is(supporting("chrome"));
@@ -111,7 +114,7 @@ public class NodeOptionsTest {
     List<Capabilities> reported = new ArrayList<>();
     new NodeOptions(config).getSessionFactories(caps -> {
       reported.add(caps);
-      return Collections.emptySet();
+      return Collections.singleton(HelperFactory.create(config, caps));
     });
 
     // There may be more drivers available, but we know that these are meant to be here.
@@ -125,7 +128,7 @@ public class NodeOptionsTest {
     List<Capabilities> reported = new ArrayList<>();
     new NodeOptions(config).getSessionFactories(caps -> {
       reported.add(caps);
-      return Collections.emptySet();
+      return Collections.singleton(HelperFactory.create(config, caps));
     });
 
     assertThat(reported).isEmpty();
@@ -137,13 +140,13 @@ public class NodeOptionsTest {
       singletonMap("node",
                    ImmutableMap.of(
                      "detect-drivers", "false",
-                     "drivers", "[chrome]"
+                     "driver-implementation", "[chrome]"
                    )));
     List<Capabilities> reported = new ArrayList<>();
     try {
       new NodeOptions(config).getSessionFactories(caps -> {
         reported.add(caps);
-        return Collections.emptySet();
+        return Collections.singleton(HelperFactory.create(config, caps));
       });
       fail("Should have not executed 'getSessionFactories' successfully");
     } catch (ConfigException e) {
@@ -160,7 +163,7 @@ public class NodeOptionsTest {
     List<Capabilities> reported = new ArrayList<>();
     new NodeOptions(config).getSessionFactories(caps -> {
       reported.add(caps);
-      return Collections.emptySet();
+      return Collections.singleton(HelperFactory.create(config, caps));
     });
 
     assertThat(reported).isNotEmpty();
@@ -220,7 +223,7 @@ public class NodeOptionsTest {
     List<Capabilities> reported = new ArrayList<>();
     new NodeOptions(config).getSessionFactories(capabilities -> {
       reported.add(capabilities);
-      return Collections.emptySet();
+      return Collections.singleton(HelperFactory.create(config, capabilities));
     });
 
     assertThat(reported).is(supporting("chrome"));
@@ -268,7 +271,7 @@ public class NodeOptionsTest {
     try {
       new NodeOptions(config).getSessionFactories(caps -> {
         reported.add(caps);
-        return Collections.emptySet();
+        return Collections.singleton(HelperFactory.create(config, caps));
       });
       fail("Should have not executed 'getSessionFactories' successfully because driver config " +
            "needs the stereotype field");
@@ -287,12 +290,12 @@ public class NodeOptionsTest {
   }
 
   public static class HelperFactory {
-
     public static SessionFactory create(Config config, Capabilities caps) {
       return new SessionFactory() {
         @Override
-        public Optional<ActiveSession> apply(CreateSessionRequest createSessionRequest) {
-          return Optional.empty();
+        public Either<WebDriverException, ActiveSession> apply(
+          CreateSessionRequest createSessionRequest) {
+          return Either.left(new SessionNotCreatedException("HelperFactory for testing"));
         }
 
         @Override
