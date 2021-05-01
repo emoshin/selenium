@@ -64,13 +64,12 @@ rbe_autoconfig(name = "rbe_default")
 
 http_archive(
     name = "rules_python",
-    sha256 = "77a6497a8e01bd5cb9cb9e0f8a683ccaa7f8123ff8f8497ae92e1dd66cc27d58",
-    strip_prefix = "rules_python-0cd570e52939500065cca8e1c7baa895b4b43a4c",
-    url = "https://github.com/bazelbuild/rules_python/archive/0cd570e52939500065cca8e1c7baa895b4b43a4c.zip",
+    sha256 = "778197e26c5fbeb07ac2a2c5ae405b30f6cb7ad1f5510ea6fdac03bded96cc6f",
+    url = "https://github.com/bazelbuild/rules_python/releases/download/0.2.0/rules_python-0.2.0.tar.gz",
 )
 
 # This one is only needed if you're using the packaging rules.
-load("@rules_python//python:pip.bzl", "pip_install", "pip_repositories")
+load("@rules_python//python:pip.bzl", "pip_install")
 
 pip_install(
     name = "dev_requirements",
@@ -102,9 +101,9 @@ http_archive(
         "//java:rules_jvm_external_javadoc.patch",
         "//java:rules_jvm_external_visibility.patch",
     ],
-    sha256 = "5f292b0b16afc42d6931339ac39cc33e22db4ddd6fc9d75d3aafaacceef957e8",
-    strip_prefix = "rules_jvm_external-eecd2531bc65d46ab37d6ca73297879328afa2b2",
-    url = "https://github.com/bazelbuild/rules_jvm_external/archive/eecd2531bc65d46ab37d6ca73297879328afa2b2.zip",
+    sha256 = "3631082609854e0e7c28c6cdc06708eceda15816f5ff3153f84da7932e3e428c",
+    strip_prefix = "rules_jvm_external-c0a8a3ea3fed24a66eade21015249ed5ed99bf65",
+    url = "https://github.com/bazelbuild/rules_jvm_external/archive/c0a8a3ea3fed24a66eade21015249ed5ed99bf65.zip",
 )
 
 load("@rules_jvm_external//:repositories.bzl", "rules_jvm_external_deps")
@@ -138,8 +137,8 @@ selenium_register_dotnet()
 
 http_archive(
     name = "build_bazel_rules_nodejs",
-    sha256 = "55a25a762fcf9c9b88ab54436581e671bc9f4f523cb5a1bd32459ebec7be68a8",
-    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/3.2.2/rules_nodejs-3.2.2.tar.gz"],
+    sha256 = "65067dcad93a61deb593be7d3d9a32a4577d09665536d8da536d731da5cd15e2",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/3.4.2/rules_nodejs-3.4.2.tar.gz"],
 )
 
 load("@build_bazel_rules_nodejs//:index.bzl", "npm_install")
@@ -197,7 +196,7 @@ load(
 container_pull(
     name = "java_image_base",
     # This pulls the java 11 version of the jave base image
-    digest = "sha256:f9fe0de7f8ded68f757d99e9d165b96e89e00d4cef80d204aa76bc0b8ffc4576",
+    digest = "sha256:34c3598d83f0dba27820323044ebe79e63ad4f137b405676da75a3905a408adf",
     registry = "gcr.io",
     repository = "distroless/java",
 )
@@ -205,7 +204,7 @@ container_pull(
 container_pull(
     name = "firefox_standalone",
     # selenium/standalone-firefox-debug:3.141.59
-    digest = "sha256:a77683572022f8139b07eb29dee66f7b34b5df4d9902b7f1e081e112411f683d",
+    digest = "sha256:27864b3c5ad5a4c4311bfa3e01cf389ec517980df12d3354b33cfc93b726b372",
     registry = "index.docker.io",
     repository = "selenium/standalone-firefox-debug",
 )
@@ -213,19 +212,19 @@ container_pull(
 container_pull(
     name = "chrome_standalone",
     # selenium/standalone-chrome-debug:3.141.59
-    digest = "sha256:53812c3d01622148e9ccd79e598c3740804dbfd51594ae592bac5a14380b595e",
+    digest = "sha256:4c56bcaba306dfc70b873f4e1f2292facb705984de90004c42c65a4380e0d3e3",
     registry = "index.docker.io",
     repository = "selenium/standalone-chrome-debug",
 )
 
 http_archive(
     name = "io_bazel_rules_k8s",
-    sha256 = "d91aeb17bbc619e649f8d32b65d9a8327e5404f451be196990e13f5b7e2d17bb",
-    strip_prefix = "rules_k8s-0.4",
-    urls = ["https://github.com/bazelbuild/rules_k8s/releases/download/v0.4/rules_k8s-v0.4.tar.gz"],
+    sha256 = "51f0977294699cd547e139ceff2396c32588575588678d2054da167691a227ef",
+    strip_prefix = "rules_k8s-0.6",
+    url = "https://github.com/bazelbuild/rules_k8s/archive/v0.6.tar.gz",
 )
 
-load("@io_bazel_rules_k8s//k8s:k8s.bzl", "k8s_repositories")
+load("@io_bazel_rules_k8s//k8s:k8s.bzl", "k8s_defaults", "k8s_repositories")
 
 k8s_repositories()
 
@@ -242,8 +241,6 @@ load(
 go_rules_dependencies()
 
 go_register_toolchains()
-
-load("@io_bazel_rules_k8s//k8s:k8s.bzl", "k8s_defaults")
 
 k8s_defaults(
     name = "k8s_dev",

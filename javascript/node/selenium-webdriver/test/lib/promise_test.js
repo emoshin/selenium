@@ -59,8 +59,23 @@ describe('promise', function () {
     }
   })
 
-  const _assertIsPromise = (p) => assert.ok(promise.isPromise(p))
-  const _assertNotPromise = (v) => assert.ok(!promise.isPromise(v))
+  it('isPromise', () => {
+    const v = () => {};
+    const x = new Promise(v, v);
+    const p = createRejectedPromise('reject');
+    const q = Promise.resolve("resolved");
+    assert.equal(true, promise.isPromise(x));
+    assert.equal(true, promise.isPromise(p));
+    assert.equal(true, promise.isPromise(q));
+    assert.equal(false, promise.isPromise(0));
+    assert.equal(false, promise.isPromise(false));
+    assert.equal(false, promise.isPromise(true));
+    assert.equal(false, promise.isPromise(null));
+    assert.equal(false, promise.isPromise(undefined));
+    assert.equal(false, promise.isPromise(''));
+    assert.equal(false, promise.isPromise('promise'));
+    assert.equal(false, promise.isPromise(v));
+  });
 
   function defer() {
     let d = {}
@@ -82,7 +97,7 @@ describe('promise', function () {
       function runTest(value) {
         return promise
           .fullyResolved(value)
-          .then((resolved) => assert.equal(value, resolved))
+          .then((resolved) => assert.strictEqual(value, resolved))
       }
       return runTest(true)
         .then(() => runTest(function () {}))
@@ -97,7 +112,10 @@ describe('promise', function () {
       var array = [true, fn, null, 123, '', undefined, 1]
       return promise.fullyResolved(array).then(function (resolved) {
         assert.strictEqual(array, resolved)
-        assert.deepStrictEqual([true, fn, null, 123, '', undefined, 1], resolved)
+        assert.deepStrictEqual(
+          [true, fn, null, 123, '', undefined, 1],
+          resolved
+        )
       })
     })
 
@@ -122,7 +140,7 @@ describe('promise', function () {
     it('promiseResolvesToPrimitive', function () {
       return promise
         .fullyResolved(Promise.resolve(123))
-        .then((resolved) => assert.equal(123, resolved))
+        .then((resolved) => assert.strictEqual(123, resolved))
     })
 
     it('promiseResolvesToArray', function () {
