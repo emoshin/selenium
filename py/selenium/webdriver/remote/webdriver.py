@@ -21,8 +21,7 @@ import copy
 
 import pkgutil
 import sys
-from typing import (List,
-                    NoReturn)
+from typing import Dict, List, Union
 
 import warnings
 
@@ -120,6 +119,32 @@ def get_remote_connection(capabilities, command_executor, keep_alive, ignore_loc
     return handler(command_executor, keep_alive=keep_alive, ignore_proxy=ignore_local_proxy)
 
 
+def create_matches(options: List[BaseOptions]) -> Dict:
+    capabilities = {"capabilities": {}}
+    opts = []
+    for opt in options:
+        opts.append(opt.to_capabilities())
+    opts_size = len(opts)
+    samesies = set()
+    for i in range(opts_size):
+        min_index = i
+        if i + 1 < opts_size:
+            samesies.update(opts[min_index].items() & opts[i + 1].items())
+
+    always = {}
+    for i in samesies:
+        always[i[0]] = i[1]
+
+    for i in opts:
+        for k in always.keys():
+            del i[k]
+
+    capabilities["capabilities"]["alwaysMatch"] = always
+    capabilities["capabilities"]["firstMatch"] = opts
+
+    return capabilities
+
+
 class BaseWebDriver(metaclass=ABCMeta):
     """
     Abstract Base Class for all Webdriver subtypes.
@@ -147,7 +172,7 @@ class WebDriver(BaseWebDriver):
 
     def __init__(self, command_executor='http://127.0.0.1:4444',
                  desired_capabilities=None, browser_profile=None, proxy=None,
-                 keep_alive=True, file_detector=None, options: BaseOptions = None):
+                 keep_alive=True, file_detector=None, options: Union[BaseOptions, List[BaseOptions]] = None):
         """
         Create a new driver that will issue commands using the wire protocol.
 
@@ -191,15 +216,20 @@ class WebDriver(BaseWebDriver):
                 stacklevel=2
             )
         capabilities = {}
-        _ignore_local_proxy = False
-        if options:
-            capabilities = options.to_capabilities()
-            _ignore_local_proxy = options._ignore_local_proxy
-        if desired_capabilities:
-            if not isinstance(desired_capabilities, dict):
-                raise WebDriverException("Desired Capabilities must be a dictionary")
-            else:
-                capabilities.update(desired_capabilities)
+        # If we get a list we can assume that no capabilities
+        # have been passed in
+        if isinstance(options, list):
+            capabilities = create_matches(options)
+        else:
+            _ignore_local_proxy = False
+            if options:
+                capabilities = options.to_capabilities()
+                _ignore_local_proxy = options._ignore_local_proxy
+            if desired_capabilities:
+                if not isinstance(desired_capabilities, dict):
+                    raise WebDriverException("Desired Capabilities must be a dictionary")
+                else:
+                    capabilities.update(desired_capabilities)
         self.command_executor = command_executor
         if isinstance(self.command_executor, (str, bytes)):
             self.command_executor = get_remote_connection(capabilities, command_executor=command_executor,
@@ -287,7 +317,7 @@ class WebDriver(BaseWebDriver):
         """
         pass
 
-    def start_session(self, capabilities: dict, browser_profile=None) -> NoReturn:
+    def start_session(self, capabilities: dict, browser_profile=None) -> None:
         """
         Creates a new session with the desired capabilities.
 
@@ -374,7 +404,7 @@ class WebDriver(BaseWebDriver):
         # a success
         return {'success': 0, 'value': None, 'sessionId': self.session_id}
 
-    def get(self, url: str) -> NoReturn:
+    def get(self, url: str) -> None:
         """
         Loads a web page in the current browser session.
         """
@@ -722,7 +752,7 @@ class WebDriver(BaseWebDriver):
         self.pinned_scripts[_script_key.id] = script
         return _script_key
 
-    def unpin(self, script_key) -> NoReturn:
+    def unpin(self, script_key) -> None:
         """
 
         """
@@ -806,7 +836,7 @@ class WebDriver(BaseWebDriver):
         """
         return self.execute(Command.GET_PAGE_SOURCE)['value']
 
-    def close(self) -> NoReturn:
+    def close(self) -> None:
         """
         Closes the current window.
 
@@ -817,7 +847,7 @@ class WebDriver(BaseWebDriver):
         """
         self.execute(Command.CLOSE)
 
-    def quit(self) -> NoReturn:
+    def quit(self) -> None:
         """
         Quits the driver and closes every associated window.
 
@@ -856,7 +886,7 @@ class WebDriver(BaseWebDriver):
         """
         return self.execute(Command.W3C_GET_WINDOW_HANDLES)['value']
 
-    def maximize_window(self) -> NoReturn:
+    def maximize_window(self) -> None:
         """
         Maximizes the current window that webdriver is using
         """
@@ -864,13 +894,13 @@ class WebDriver(BaseWebDriver):
         command = Command.W3C_MAXIMIZE_WINDOW
         self.execute(command, params)
 
-    def fullscreen_window(self) -> NoReturn:
+    def fullscreen_window(self) -> None:
         """
         Invokes the window manager-specific 'full screen' operation
         """
         self.execute(Command.FULLSCREEN_WINDOW)
 
-    def minimize_window(self) -> NoReturn:
+    def minimize_window(self) -> None:
         """
         Invokes the window manager-specific 'minimize' operation
         """
@@ -908,7 +938,7 @@ class WebDriver(BaseWebDriver):
         return self._switch_to
 
     # Navigation
-    def back(self) -> NoReturn:
+    def back(self) -> None:
         """
         Goes one step backward in the browser history.
 
@@ -919,7 +949,7 @@ class WebDriver(BaseWebDriver):
         """
         self.execute(Command.GO_BACK)
 
-    def forward(self) -> NoReturn:
+    def forward(self) -> None:
         """
         Goes one step forward in the browser history.
 
@@ -930,7 +960,7 @@ class WebDriver(BaseWebDriver):
         """
         self.execute(Command.GO_FORWARD)
 
-    def refresh(self) -> NoReturn:
+    def refresh(self) -> None:
         """
         Refreshes the current page.
 
@@ -967,7 +997,7 @@ class WebDriver(BaseWebDriver):
         except NoSuchCookieException:
             return None
 
-    def delete_cookie(self, name) -> NoReturn:
+    def delete_cookie(self, name) -> None:
         """
         Deletes a single cookie with the given name.
 
@@ -978,7 +1008,7 @@ class WebDriver(BaseWebDriver):
         """
         self.execute(Command.DELETE_COOKIE, {'name': name})
 
-    def delete_all_cookies(self) -> NoReturn:
+    def delete_all_cookies(self) -> None:
         """
         Delete all cookies in the scope of the session.
 
@@ -989,7 +1019,7 @@ class WebDriver(BaseWebDriver):
         """
         self.execute(Command.DELETE_ALL_COOKIES)
 
-    def add_cookie(self, cookie_dict) -> NoReturn:
+    def add_cookie(self, cookie_dict) -> None:
         """
         Adds a cookie to your current session.
 
@@ -1011,7 +1041,7 @@ class WebDriver(BaseWebDriver):
             self.execute(Command.ADD_COOKIE, {'cookie': cookie_dict})
 
     # Timeouts
-    def implicitly_wait(self, time_to_wait) -> NoReturn:
+    def implicitly_wait(self, time_to_wait) -> None:
         """
         Sets a sticky timeout to implicitly wait for an element to be found,
            or a command to complete. This method only needs to be called one
@@ -1029,7 +1059,7 @@ class WebDriver(BaseWebDriver):
         self.execute(Command.SET_TIMEOUTS, {
             'implicit': int(float(time_to_wait) * 1000)})
 
-    def set_script_timeout(self, time_to_wait) -> NoReturn:
+    def set_script_timeout(self, time_to_wait) -> None:
         """
         Set the amount of time that the script should wait during an
            execute_async_script call before throwing an error.
@@ -1045,7 +1075,7 @@ class WebDriver(BaseWebDriver):
         self.execute(Command.SET_TIMEOUTS, {
             'script': int(float(time_to_wait) * 1000)})
 
-    def set_page_load_timeout(self, time_to_wait) -> NoReturn:
+    def set_page_load_timeout(self, time_to_wait) -> None:
         """
         Set the amount of time to wait for a page load to complete
            before throwing an error.
@@ -1083,7 +1113,7 @@ class WebDriver(BaseWebDriver):
         return Timeouts(**timeouts)
 
     @timeouts.setter
-    def timeouts(self, timeouts) -> NoReturn:
+    def timeouts(self, timeouts) -> None:
         """
         Set all timeouts for the session. This will override any previously
         set timeouts.

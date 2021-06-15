@@ -28,12 +28,15 @@ import org.openqa.selenium.events.EventBus;
 import org.openqa.selenium.events.local.GuavaEventBus;
 import org.openqa.selenium.grid.data.CreateSessionRequest;
 import org.openqa.selenium.grid.data.CreateSessionResponse;
+import org.openqa.selenium.grid.data.DefaultSlotMatcher;
 import org.openqa.selenium.grid.data.NewSessionRequestEvent;
 import org.openqa.selenium.grid.data.RequestId;
 import org.openqa.selenium.grid.data.Session;
 import org.openqa.selenium.grid.data.Slot;
 import org.openqa.selenium.grid.distributor.Distributor;
+import org.openqa.selenium.grid.distributor.gridmodel.local.LocalGridModel;
 import org.openqa.selenium.grid.distributor.local.LocalDistributor;
+import org.openqa.selenium.grid.distributor.selector.DefaultSlotSelector;
 import org.openqa.selenium.grid.node.ActiveSession;
 import org.openqa.selenium.grid.node.Node;
 import org.openqa.selenium.grid.node.SessionFactory;
@@ -66,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -111,11 +115,13 @@ public class GraphqlHandlerTest {
       Instant.now(),
       Set.of(OSS, W3C),
       Set.of(caps),
+      Map.of(),
       Map.of());
 
     queue = new LocalNewSessionQueue(
       tracer,
       events,
+      new DefaultSlotMatcher(),
       Duration.ofSeconds(2),
       Duration.ofSeconds(2),
       registrationSecret);
@@ -126,8 +132,11 @@ public class GraphqlHandlerTest {
       clientFactory,
       sessions,
       queue,
+      new LocalGridModel(events),
+      new DefaultSlotSelector(),
       registrationSecret,
-      Duration.ofMinutes(5));
+      Duration.ofMinutes(5),
+      false);
   }
 
   @Test
@@ -172,12 +181,13 @@ public class GraphqlHandlerTest {
   }
 
   @Test
-  public void shouldBeAbleToGetSessionQueueSize() {
+  public void shouldBeAbleToGetSessionQueueSize() throws URISyntaxException {
     SessionRequest request = new SessionRequest(
       new RequestId(UUID.randomUUID()),
       Instant.now(),
       Set.of(W3C),
       Set.of(caps),
+      Map.of(),
       Map.of());
 
     continueOnceAddedToQueue(request);
@@ -193,12 +203,13 @@ public class GraphqlHandlerTest {
   }
 
   @Test
-  public void shouldBeAbleToGetSessionQueueRequests() {
+  public void shouldBeAbleToGetSessionQueueRequests() throws URISyntaxException {
     SessionRequest request = new SessionRequest(
       new RequestId(UUID.randomUUID()),
       Instant.now(),
       Set.of(W3C),
       Set.of(caps),
+      Map.of(),
       Map.of());
 
     continueOnceAddedToQueue(request);

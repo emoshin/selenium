@@ -24,9 +24,12 @@ import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.events.EventBus;
 import org.openqa.selenium.events.local.GuavaEventBus;
 import org.openqa.selenium.grid.data.Availability;
+import org.openqa.selenium.grid.data.DefaultSlotMatcher;
 import org.openqa.selenium.grid.data.Session;
 import org.openqa.selenium.grid.distributor.Distributor;
+import org.openqa.selenium.grid.distributor.gridmodel.local.LocalGridModel;
 import org.openqa.selenium.grid.distributor.local.LocalDistributor;
+import org.openqa.selenium.grid.distributor.selector.DefaultSlotSelector;
 import org.openqa.selenium.grid.node.HealthCheck;
 import org.openqa.selenium.grid.node.Node;
 import org.openqa.selenium.grid.node.local.LocalNode;
@@ -87,6 +90,7 @@ public class RouterTest {
     queue = new LocalNewSessionQueue(
       tracer,
       bus,
+      new DefaultSlotMatcher(),
       Duration.ofSeconds(2),
       Duration.ofSeconds(2),
       registrationSecret);
@@ -98,8 +102,11 @@ public class RouterTest {
       clientFactory,
       sessions,
       queue,
+      new LocalGridModel(bus),
+      new DefaultSlotSelector(),
       registrationSecret,
-      Duration.ofMinutes(5));
+      Duration.ofMinutes(5),
+      false);
     handler.addHandler(distributor);
 
     router = new Router(tracer, clientFactory, sessions, queue, distributor);

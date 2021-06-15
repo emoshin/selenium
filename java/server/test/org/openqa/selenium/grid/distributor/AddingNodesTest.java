@@ -30,6 +30,7 @@ import org.openqa.selenium.events.EventBus;
 import org.openqa.selenium.events.local.GuavaEventBus;
 import org.openqa.selenium.grid.data.CreateSessionRequest;
 import org.openqa.selenium.grid.data.CreateSessionResponse;
+import org.openqa.selenium.grid.data.DefaultSlotMatcher;
 import org.openqa.selenium.grid.data.NodeId;
 import org.openqa.selenium.grid.data.NodeStatus;
 import org.openqa.selenium.grid.data.NodeStatusEvent;
@@ -37,8 +38,10 @@ import org.openqa.selenium.grid.data.Session;
 import org.openqa.selenium.grid.data.SessionClosedEvent;
 import org.openqa.selenium.grid.data.Slot;
 import org.openqa.selenium.grid.data.SlotId;
+import org.openqa.selenium.grid.distributor.gridmodel.local.LocalGridModel;
 import org.openqa.selenium.grid.distributor.local.LocalDistributor;
 import org.openqa.selenium.grid.distributor.remote.RemoteDistributor;
+import org.openqa.selenium.grid.distributor.selector.DefaultSlotSelector;
 import org.openqa.selenium.grid.node.CapabilityResponseEncoder;
 import org.openqa.selenium.grid.node.HealthCheck;
 import org.openqa.selenium.grid.node.Node;
@@ -69,7 +72,6 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -108,6 +110,7 @@ public class AddingNodesTest {
     NewSessionQueue queue = new LocalNewSessionQueue(
       tracer,
       bus,
+      new DefaultSlotMatcher(),
       Duration.ofSeconds(2),
       Duration.ofSeconds(2),
       registrationSecret);
@@ -117,8 +120,11 @@ public class AddingNodesTest {
       clientFactory,
       sessions,
       queue,
+      new LocalGridModel(bus),
+      new DefaultSlotSelector(),
       registrationSecret,
-      Duration.ofMinutes(5));
+      Duration.ofMinutes(5),
+      false);
 
     handler.addHandler(local);
     distributor = new RemoteDistributor(tracer, clientFactory, externalUrl, registrationSecret);
@@ -243,16 +249,16 @@ public class AddingNodesTest {
     // Craft a status that makes it look like the node is busy, and post it on the bus.
     NodeStatus status = node.getStatus();
     NodeStatus crafted = new NodeStatus(
-      status.getId(),
-      status.getUri(),
+      status.getNodeId(),
+      status.getExternalUri(),
       status.getMaxSessionCount(),
       ImmutableSet.of(
         new Slot(
-          new SlotId(status.getId(), UUID.randomUUID()),
+          new SlotId(status.getNodeId(), UUID.randomUUID()),
           CAPS,
           Instant.now(),
-          Optional.of(new Session(
-            new SessionId(UUID.randomUUID()), sessionUri, CAPS, CAPS, Instant.now())))),
+          new Session(
+            new SessionId(UUID.randomUUID()), sessionUri, CAPS, CAPS, Instant.now()))),
       UP,
       Duration.ofSeconds(10),
       status.getVersion(),
@@ -375,7 +381,7 @@ public class AddingNodesTest {
             new SlotId(getId(), UUID.randomUUID()),
             CAPS,
             Instant.now(),
-            Optional.ofNullable(sess))),
+            sess)),
         UP,
         Duration.ofSeconds(10),
         getNodeVersion(),

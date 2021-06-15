@@ -19,6 +19,7 @@ package org.openqa.selenium.grid.distributor.selector;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.openqa.selenium.Capabilities;
+import org.openqa.selenium.grid.config.Config;
 import org.openqa.selenium.grid.data.NodeStatus;
 import org.openqa.selenium.grid.data.Slot;
 import org.openqa.selenium.grid.data.SlotId;
@@ -48,9 +49,9 @@ public class DefaultSlotSelector implements SlotSelector {
           // Then last session created (oldest first), so natural ordering again
           .thenComparingLong(NodeStatus::getLastSessionCreated)
           // And use the node id as a tie-breaker.
-          .thenComparing(NodeStatus::getId))
+          .thenComparing(NodeStatus::getNodeId))
       .flatMap(node -> node.getSlots().stream()
-        .filter(slot -> !slot.getSession().isPresent())
+        .filter(slot -> slot.getSession()==null)
         .filter(slot -> slot.isSupporting(capabilities))
         .map(Slot::getId))
       .collect(toImmutableSet());
@@ -65,4 +66,7 @@ public class DefaultSlotSelector implements SlotSelector {
       .count();
   }
 
+  public static SlotSelector create(Config config) {
+    return new DefaultSlotSelector();
+  }
 }

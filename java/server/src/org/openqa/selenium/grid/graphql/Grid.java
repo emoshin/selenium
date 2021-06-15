@@ -17,12 +17,12 @@
 
 package org.openqa.selenium.grid.graphql;
 
-import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.grid.data.DistributorStatus;
 import org.openqa.selenium.grid.data.NodeStatus;
+import org.openqa.selenium.grid.data.SessionRequestCapability;
 import org.openqa.selenium.grid.data.Slot;
 import org.openqa.selenium.grid.distributor.Distributor;
 import org.openqa.selenium.grid.sessionqueue.NewSessionQueue;
@@ -36,24 +36,30 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class Grid {
 
   private static final Json JSON = new Json();
   private final URI uri;
-  private final Supplier<DistributorStatus> distributorStatus;
+  private final DistributorStatus distributorStatus;
   private final List<Set<Capabilities>> queueInfoList;
   private final String version;
 
-  public Grid(Distributor distributor, NewSessionQueue newSessionQueue, URI uri,
-              String version) {
+  public Grid(
+    Distributor distributor,
+    NewSessionQueue newSessionQueue,
+    URI uri,
+    String version) {
     Require.nonNull("Distributor", distributor);
     this.uri = Require.nonNull("Grid's public URI", uri);
     NewSessionQueue sessionQueue = Require.nonNull("New session queue", newSessionQueue);
-    this.queueInfoList = sessionQueue.getQueueContents();
-    this.distributorStatus = Suppliers.memoize(distributor::getStatus);
+    this.queueInfoList = sessionQueue
+      .getQueueContents()
+      .stream()
+      .map(SessionRequestCapability::getDesiredCapabilities)
+      .collect(Collectors.toList());
+    this.distributorStatus = distributor.getStatus();
     this.version = Require.nonNull("Grid's version", version);
   }
 
@@ -68,12 +74,15 @@ public class Grid {
   public List<Node> getNodes() {
     ImmutableList.Builder<Node> toReturn = ImmutableList.builder();
 
-    for (NodeStatus status : distributorStatus.get().getNodes()) {
+    for (NodeStatus status : distributorStatus.getNodes()) {
       Map<Capabilities, Integer> stereotypes = new HashMap<>();
       Map<org.openqa.selenium.grid.data.Session, Slot> sessions = new HashMap<>();
 
       for (Slot slot : status.getSlots()) {
-        slot.getSession().ifPresent(session -> sessions.put(session, slot));
+        org.openqa.selenium.grid.data.Session session = slot.getSession();
+        if (session != null) {
+          sessions.put(session, slot);
+        }
 
         int count = stereotypes.getOrDefault(slot.getStereotype(), 0);
         count++;
@@ -86,8 +95,8 @@ public class Grid {
         status.getOsInfo().get("version"));
 
       toReturn.add(new Node(
-        status.getId(),
-        status.getUri(),
+        status.getNodeId(),
+        status.getExternalUri(),
         status.getAvailability(),
         status.getMaxSessionCount(),
         status.getSlots().size(),
@@ -101,26 +110,26 @@ public class Grid {
   }
 
   public int getNodeCount() {
-    return distributorStatus.get().getNodes().size();
+    return distributorStatus.getNodes().size();
   }
 
   public int getSessionCount() {
-    return distributorStatus.get().getNodes().stream()
+    return distributorStatus.getNodes().stream()
       .map(NodeStatus::getSlots)
       .flatMap(Collection::stream)
-      .filter(slot -> slot.getSession().isPresent())
+      .filter(slot -> slot.getSession()!=null)
       .mapToInt(slot -> 1)
       .sum();
   }
 
   public int getTotalSlots() {
-    return distributorStatus.get().getNodes().stream()
+    return distributorStatus.getNodes().stream()
       .mapToInt(status -> status.getSlots().size())
       .sum();
   }
 
   public int getMaxSession() {
-    return distributorStatus.get().getNodes().stream()
+    return distributorStatus.getNodes().stream()
       .mapToInt(NodeStatus::getMaxSessionCount)
       .sum();
   }
@@ -139,18 +148,18 @@ public class Grid {
 
   public List<Session> getSessions() {
     List<Session> sessions = new ArrayList<>();
-    for (NodeStatus status : distributorStatus.get().getNodes()) {
+    for (NodeStatus status : distributorStatus.getNodes()) {
       for (Slot slot : status.getSlots()) {
-        if (slot.getSession().isPresent()) {
-          org.openqa.selenium.grid.data.Session session = slot.getSession().get();
+        if (slot.getSession()!=null) {
+          org.openqa.selenium.grid.data.Session session = slot.getSession();
           sessions.add(
             new org.openqa.selenium.grid.graphql.Session(
               session.getId().toString(),
               session.getCapabilities(),
               session.getStartTime(),
               session.getUri(),
-              status.getId().toString(),
-              status.getUri(),
+              status.getNodeId().toString(),
+              status.getExternalUri(),
               slot)
           );
         }

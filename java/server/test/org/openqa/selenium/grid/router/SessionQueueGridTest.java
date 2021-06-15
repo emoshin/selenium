@@ -26,9 +26,12 @@ import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.events.EventBus;
 import org.openqa.selenium.events.local.GuavaEventBus;
 import org.openqa.selenium.grid.config.MapConfig;
+import org.openqa.selenium.grid.data.DefaultSlotMatcher;
 import org.openqa.selenium.grid.data.Session;
 import org.openqa.selenium.grid.distributor.Distributor;
+import org.openqa.selenium.grid.distributor.gridmodel.local.LocalGridModel;
 import org.openqa.selenium.grid.distributor.local.LocalDistributor;
+import org.openqa.selenium.grid.distributor.selector.DefaultSlotSelector;
 import org.openqa.selenium.grid.node.local.LocalNode;
 import org.openqa.selenium.grid.security.AddSecretFilter;
 import org.openqa.selenium.grid.security.Secret;
@@ -97,8 +100,9 @@ public class SessionQueueGridTest {
     NewSessionQueue queue = new LocalNewSessionQueue(
       tracer,
       bus,
+      new DefaultSlotMatcher(),
       Duration.ofSeconds(5),
-      Duration.ofSeconds(10),
+      Duration.ofSeconds(60),
       registrationSecret);
     handler.addHandler(queue);
 
@@ -108,8 +112,11 @@ public class SessionQueueGridTest {
       clientFactory,
       sessions,
       queue,
+      new LocalGridModel(bus),
+      new DefaultSlotSelector(),
       registrationSecret,
-      Duration.ofMinutes(5));
+      Duration.ofMinutes(5),
+      false);
     handler.addHandler(distributor);
 
     LocalNode localNode = LocalNode.builder(tracer, bus, nodeUri, nodeUri, registrationSecret)
@@ -189,7 +196,7 @@ public class SessionQueueGridTest {
         fixedThreadPoolService.submit(sessionCreationTask).get(20, SECONDS);
       assertThat(secondSessionResponse.getStatus()).isEqualTo(HTTP_OK);
 
-      Future<HttpResponse> thirdSessionrFuture = fixedThreadPoolService.submit(sessionCreationTask);
+      Future<HttpResponse> thirdSessionFuture = fixedThreadPoolService.submit(sessionCreationTask);
 
       Callable<HttpResponse> clearTask = () -> {
         HttpRequest request =
@@ -203,7 +210,7 @@ public class SessionQueueGridTest {
       // Clearing the new session request will cancel the third session request in the queue.
       clearQueueResponse.get(10, SECONDS);
 
-      HttpResponse thirdSessionResponse = thirdSessionrFuture.get();
+      HttpResponse thirdSessionResponse = thirdSessionFuture.get();
       assertThat(thirdSessionResponse.getStatus()).isEqualTo(HTTP_INTERNAL_ERROR);
     } catch (InterruptedException e) {
       fail("Unable to create session. Thread Interrupted");
