@@ -3,8 +3,8 @@
     "@babel/preset-react": "^7.14.5",
     "@bazel/buildifier": "^4.0.0",
     "@bazel/ibazel": "^0.14.0",
-    "@bazel/jasmine": "^3.7.0",
-    "@bazel/typescript": "^3.7.0",
+    "@bazel/jasmine": "^3.8.0",
+    "@bazel/typescript": "^3.8.0",
     "@testing-library/jest-dom": "^5.14.1",
     "@testing-library/react": "^11.2.7",
     "@testing-library/user-event": "^13.1.9",
@@ -30,7 +30,7 @@
     "typescript": "^3.9.7",
     "xml2js": "^0.4.23"
   },
-   "repository": {
+  "repository": {
     "type": "git",
     "url": "https://github.com/SeleniumHQ/selenium.git"
   },

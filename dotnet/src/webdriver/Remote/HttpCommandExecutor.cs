@@ -193,7 +193,7 @@ namespace OpenQA.Selenium.Remote
                 string unknownErrorMessage = "An unknown exception was encountered sending an HTTP request to the remote WebDriver server for URL {0}. The exception message was: {1}";
                 throw new WebDriverException(string.Format(CultureInfo.InvariantCulture, unknownErrorMessage, requestInfo.FullUri.AbsoluteUri, ex.Message), ex);
             }
-            catch(TaskCanceledException ex)
+            catch (TaskCanceledException ex)
             {
                 string timeoutMessage = "The HTTP request to the remote WebDriver server for URL {0} timed out after {1} seconds.";
                 throw new WebDriverException(string.Format(CultureInfo.InvariantCulture, timeoutMessage, requestInfo.FullUri.AbsoluteUri, this.serverResponseTimeout.TotalSeconds), ex);
@@ -232,7 +232,6 @@ namespace OpenQA.Selenium.Remote
             }
 
             httpClientHandler.Proxy = this.Proxy;
-            // httpClientHandler.MaxConnectionsPerServer = 2000;
 
             this.client = new HttpClient(httpClientHandler);
             string userAgentString = string.Format(CultureInfo.InvariantCulture, UserAgentHeaderTemplate, ResourceUtilities.AssemblyVersion, ResourceUtilities.PlatformFamily);
@@ -249,38 +248,43 @@ namespace OpenQA.Selenium.Remote
 
         private async Task<HttpResponseInfo> MakeHttpRequest(HttpRequestInfo requestInfo)
         {
-            SendingRemoteHttpRequestEventArgs eventArgs = new SendingRemoteHttpRequestEventArgs(null, requestInfo.RequestBody);
+            SendingRemoteHttpRequestEventArgs eventArgs = new SendingRemoteHttpRequestEventArgs(requestInfo.HttpMethod, requestInfo.FullUri.ToString(), requestInfo.RequestBody);
             this.OnSendingRemoteHttpRequest(eventArgs);
 
             HttpMethod method = new HttpMethod(requestInfo.HttpMethod);
-            HttpRequestMessage requestMessage = new HttpRequestMessage(method, requestInfo.FullUri);
-            if (requestInfo.HttpMethod == HttpCommandInfo.GetCommand)
+            using (HttpRequestMessage requestMessage = new HttpRequestMessage(method, requestInfo.FullUri))
             {
-                CacheControlHeaderValue cacheControlHeader = new CacheControlHeaderValue();
-                cacheControlHeader.NoCache = true;
-                requestMessage.Headers.CacheControl = cacheControlHeader;
+                if (requestInfo.HttpMethod == HttpCommandInfo.GetCommand)
+                {
+                    CacheControlHeaderValue cacheControlHeader = new CacheControlHeaderValue();
+                    cacheControlHeader.NoCache = true;
+                    requestMessage.Headers.CacheControl = cacheControlHeader;
+                }
+
+                if (requestInfo.HttpMethod == HttpCommandInfo.PostCommand)
+                {
+                    MediaTypeWithQualityHeaderValue acceptHeader = new MediaTypeWithQualityHeaderValue(JsonMimeType);
+                    acceptHeader.CharSet = Utf8CharsetType;
+                    requestMessage.Headers.Accept.Add(acceptHeader);
+
+                    byte[] bytes = Encoding.UTF8.GetBytes(eventArgs.RequestBody);
+                    requestMessage.Content = new ByteArrayContent(bytes, 0, bytes.Length);
+
+                    MediaTypeHeaderValue contentTypeHeader = new MediaTypeHeaderValue(JsonMimeType);
+                    contentTypeHeader.CharSet = Utf8CharsetType;
+                    requestMessage.Content.Headers.ContentType = contentTypeHeader;
+                }
+
+                using (HttpResponseMessage responseMessage = await this.client.SendAsync(requestMessage))
+                {
+                    HttpResponseInfo httpResponseInfo = new HttpResponseInfo();
+                    httpResponseInfo.Body = await responseMessage.Content.ReadAsStringAsync();
+                    httpResponseInfo.ContentType = responseMessage.Content.Headers.ContentType.ToString();
+                    httpResponseInfo.StatusCode = responseMessage.StatusCode;
+
+                    return httpResponseInfo;
+                }
             }
-
-            if (requestInfo.HttpMethod == HttpCommandInfo.PostCommand)
-            {
-                MediaTypeWithQualityHeaderValue acceptHeader = new MediaTypeWithQualityHeaderValue(JsonMimeType);
-                acceptHeader.CharSet = Utf8CharsetType;
-                requestMessage.Headers.Accept.Add(acceptHeader);
-
-                byte[] bytes = Encoding.UTF8.GetBytes(eventArgs.RequestBody);
-                requestMessage.Content = new ByteArrayContent(bytes, 0, bytes.Length);
-
-                MediaTypeHeaderValue contentTypeHeader = new MediaTypeHeaderValue(JsonMimeType);
-                contentTypeHeader.CharSet = Utf8CharsetType;
-                requestMessage.Content.Headers.ContentType = contentTypeHeader;
-            }
-
-            HttpResponseMessage responseMessage = await this.client.SendAsync(requestMessage);
-            HttpResponseInfo httpResponseInfo = new HttpResponseInfo();
-            httpResponseInfo.Body = await responseMessage.Content.ReadAsStringAsync();
-            httpResponseInfo.ContentType = responseMessage.Content.Headers.ContentType.ToString();
-            httpResponseInfo.StatusCode = responseMessage.StatusCode;
-            return httpResponseInfo;
         }
 
         private Response CreateResponse(HttpResponseInfo responseInfo)
@@ -295,29 +299,6 @@ namespace OpenQA.Selenium.Remote
             {
                 response.Value = body;
             }
-
-            //if (this.CommandInfoRepository.SpecificationLevel < 1 && (responseInfo.StatusCode < HttpStatusCode.OK || responseInfo.StatusCode >= HttpStatusCode.BadRequest))
-            //{
-            //    if (responseInfo.StatusCode >= HttpStatusCode.BadRequest && responseInfo.StatusCode < HttpStatusCode.InternalServerError)
-            //    {
-            //        response.Status = WebDriverResult.UnhandledError;
-            //    }
-            //    else if (responseInfo.StatusCode >= HttpStatusCode.InternalServerError)
-            //    {
-            //        if (responseInfo.StatusCode == HttpStatusCode.NotImplemented)
-            //        {
-            //            response.Status = WebDriverResult.UnknownCommand;
-            //        }
-            //        else if (response.Status == WebDriverResult.Success)
-            //        {
-            //            response.Status = WebDriverResult.UnhandledError;
-            //        }
-            //    }
-            //    else
-            //    {
-            //        response.Status = WebDriverResult.UnhandledError;
-            //    }
-            //}
 
             if (response.Value is string)
             {

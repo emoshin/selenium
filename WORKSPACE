@@ -50,8 +50,8 @@ bazel_skylib_workspace()
 
 http_archive(
     name = "rules_python",
-    sha256 = "778197e26c5fbeb07ac2a2c5ae405b30f6cb7ad1f5510ea6fdac03bded96cc6f",
-    url = "https://github.com/bazelbuild/rules_python/releases/download/0.2.0/rules_python-0.2.0.tar.gz",
+    url = "https://github.com/bazelbuild/rules_python/releases/download/0.3.0/rules_python-0.3.0.tar.gz",
+    sha256 = "934c9ceb552e84577b0faf1e5a2f0450314985b4d8712b2b70717dc679fdc01b",
 )
 
 # This one is only needed if you're using the packaging rules.
@@ -123,8 +123,8 @@ selenium_register_dotnet()
 
 http_archive(
     name = "build_bazel_rules_nodejs",
-    sha256 = "8f5f192ba02319254aaf2cdcca00ec12eaafeb979a80a1e946773c520ae0a2c9",
-    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/3.7.0/rules_nodejs-3.7.0.tar.gz"],
+    sha256 = "e79c08a488cc5ac40981987d862c7320cee8741122a2649e9b08e850b6f20442",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/3.8.0/rules_nodejs-3.8.0.tar.gz"],
 )
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
@@ -197,7 +197,7 @@ load(
 container_pull(
     name = "java_image_base",
     # This pulls the java 11 version of the java base image
-    digest = "sha256:ae5d32ed4da6d2207fd34accde64f5b1264cbdd1340fa8c1cfa70cdf1841f9db",
+    digest = "sha256:97c7eae86c65819664fcb7f36e8dee54bbbbc09c2cb6b448cbee06e1b42df81b",
     registry = "gcr.io",
     repository = "distroless/java",
 )
@@ -205,7 +205,7 @@ container_pull(
 container_pull(
     name = "firefox_standalone",
     # selenium/standalone-firefox-debug:3.141.59
-    digest = "sha256:ac284138b2b8d581b9d3b1a15282ab0a679aa06cc34146f473e5e5aee5f5303d",
+    digest = "sha256:ecc9861eafb3c2f999126fa4cc0434e9fbe6658ba1241998457bb088c99dd0d0",
     registry = "index.docker.io",
     repository = "selenium/standalone-firefox-debug",
 )
@@ -213,7 +213,7 @@ container_pull(
 container_pull(
     name = "chrome_standalone",
     # selenium/standalone-chrome-debug:3.141.59
-    digest = "sha256:75edd7f58f4faeb4c7b11d81bfa4c720e007253846defe3117bc3f692922894c",
+    digest = "sha256:c3a2174ac31b3918ae9d93c43ed8165fc2346b8c9e16d38ebac691fbb242667f",
     registry = "index.docker.io",
     repository = "selenium/standalone-chrome-debug",
 )

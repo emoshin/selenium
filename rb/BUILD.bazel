@@ -11,10 +11,9 @@ package(default_visibility = ["//:__subpackages__"])
 
 CDP_VERSIONS = [
     "v85",
-    "v88",
-    "v89",
     "v90",
     "v91",
+    "v92",
 ]
 
 copy_file(
@@ -43,7 +42,7 @@ copy_file(
 
 copy_file(
     name = "selenium-server-deploy",
-    src = "//java/server/src/org/openqa/selenium/grid:selenium_server_deploy.jar",
+    src = "//java/src/org/openqa/selenium/grid:selenium_server_deploy.jar",
     out = "selenium_server_deploy.jar",
 )
 
