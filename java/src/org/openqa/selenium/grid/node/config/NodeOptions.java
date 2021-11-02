@@ -37,8 +37,10 @@ import org.openqa.selenium.grid.node.SessionFactory;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.json.Json;
 import org.openqa.selenium.json.JsonOutput;
+import org.openqa.selenium.net.Urls;
 import org.openqa.selenium.remote.service.DriverService;
 
+import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.URI;
@@ -47,6 +49,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -87,13 +90,41 @@ public class NodeOptions {
   }
 
   public Optional<URI> getPublicGridUri() {
-    return config.get(NODE_SECTION, "grid-url").map(url -> {
+    Optional<URI> gridUri = config.get(NODE_SECTION, "grid-url").map(url -> {
       try {
         return new URI(url);
       } catch (URISyntaxException e) {
         throw new ConfigException("Unable to construct public URL: " + url);
       }
     });
+
+    if (gridUri.isPresent()) {
+      return gridUri;
+    }
+
+    Optional<String> hubAddress = config.get(NODE_SECTION, "hub-address");
+    if (!hubAddress.isPresent()) {
+      return Optional.empty();
+    }
+
+    URI base = hubAddress.map(Urls::from).get();
+    try {
+      URI baseUri = base;
+      if (baseUri.getPort() == -1) {
+        baseUri = new URI(
+          baseUri.getScheme() == null ? "http" : baseUri.getScheme(),
+          baseUri.getUserInfo(),
+          baseUri.getHost(),
+          4444,
+          baseUri.getPath(),
+          baseUri.getQuery(),
+          baseUri.getFragment());
+      }
+
+      return Optional.of(baseUri);
+    } catch (URISyntaxException e) {
+      throw new ConfigException("Unable to construct public URL: " + base);
+    }
   }
 
   public Node getNode() {
@@ -243,11 +274,16 @@ public class NodeOptions {
     Function<Capabilities, Collection<SessionFactory>> factoryFactory,
     ImmutableMultimap.Builder<Capabilities, SessionFactory> sessionFactories) {
     Multimap<WebDriverInfo, SessionFactory> driverConfigs = HashMultimap.create();
-    int configElements = 3;
     config.getAll(NODE_SECTION, "driver-configuration").ifPresent(drivers -> {
-      if (drivers.size() % configElements != 0) {
-        throw new ConfigException("Expected each driver config to have three elements " +
-                                  "(name, stereotype and max-sessions)");
+      /*
+        The four accepted keys are: display-name, max-sessions, stereotype, webdriver-executable.
+        The mandatory keys are display-name and stereotype. When configs are read, they keys always
+        come alphabetically ordered. This means that we know a new config is present when we find
+        the "display-name" key again.
+       */
+
+      if (drivers.size() == 0) {
+        throw new ConfigException("No driver configs were found!");
       }
 
       drivers.stream()
@@ -260,19 +296,23 @@ public class NodeOptions {
                                     "required 'key=value' structure");
         });
 
+      // Find all indexes where "display-name" is present, as it marks the start of a config
+      int[] configIndexes = IntStream.range(0, drivers.size())
+        .filter(index -> drivers.get(index).startsWith("display-name")).toArray();
+
+      if (configIndexes.length == 0) {
+        throw new ConfigException("No 'display-name' keyword was found in the provided configs!");
+      }
+
       List<Map<String, String>> driversMap = new ArrayList<>();
-      IntStream.range(0, drivers.size()/configElements).boxed()
-        .forEach(i -> {
-          ImmutableMap<String, String> configMap = ImmutableMap.of(
-            drivers.get(i*configElements).split("=")[0],
-            drivers.get(i*configElements).split("=")[1],
-            drivers.get(i*configElements+1).split("=")[0],
-            drivers.get(i*configElements+1).split("=")[1],
-            drivers.get(i*configElements+2).split("=")[0],
-            drivers.get(i*configElements+2).split("=")[1]
-          );
-          driversMap.add(configMap);
-        });
+      for (int i = 0; i < configIndexes.length; i++) {
+        int fromIndex = configIndexes[i];
+        int toIndex = (i + 1) >= configIndexes.length ? drivers.size() : configIndexes[i + 1];
+        Map<String, String> configMap = new HashMap<>();
+        drivers.subList(fromIndex, toIndex)
+          .forEach(keyValue -> configMap.put(keyValue.split("=")[0], keyValue.split("=")[1]));
+        driversMap.add(configMap);
+      }
 
       List<DriverService.Builder<?, ?>> builders = new ArrayList<>();
       ServiceLoader.load(DriverService.Builder.class).forEach(builders::add);
@@ -284,11 +324,25 @@ public class NodeOptions {
         if (!configMap.containsKey("stereotype")) {
           throw new ConfigException("Driver config is missing stereotype value. " + configMap);
         }
-        Capabilities stereotype =
-          enhanceStereotype(JSON.toType(configMap.get("stereotype"), Capabilities.class));
-        String configName = configMap.getOrDefault("name", "Custom Slot Config");
-        int driverMaxSessions = Integer.parseInt(configMap.getOrDefault("max-sessions", "1"));
-        Require.positive("Driver max sessions", driverMaxSessions);
+
+        Capabilities confStereotype = JSON.toType(configMap.get("stereotype"), Capabilities.class);
+        if (configMap.containsKey("webdriver-executable")) {
+          String webDriverExecutablePath = configMap.getOrDefault("webdriver-executable", "");
+          File webDriverExecutable = new File(webDriverExecutablePath);
+          if (!webDriverExecutable.isFile()) {
+            LOG.warning(
+              "Driver executable does not seem to be a file! " + webDriverExecutablePath);
+          }
+          if (!webDriverExecutable.canExecute()) {
+            LOG.warning("Driver file exists but does not seem to be a executable! "
+                        + webDriverExecutablePath);
+          }
+          confStereotype = new PersistentCapabilities(confStereotype)
+            .setCapability("se:webDriverExecutable", webDriverExecutablePath);
+        }
+        Capabilities stereotype = enhanceStereotype(confStereotype);
+
+        String configName = configMap.getOrDefault("display-name", "Custom Slot Config");
 
         WebDriverInfo info = infos.stream()
           .filter(webDriverInfo -> webDriverInfo.isSupporting(stereotype))
@@ -296,11 +350,17 @@ public class NodeOptions {
           .orElseThrow(() ->
                          new ConfigException("Unable to find matching driver for %s", stereotype));
 
+        int driverMaxSessions = Integer
+          .parseInt(configMap.getOrDefault("max-sessions",
+                                           String.valueOf(info.getMaximumSimultaneousSessions())));
+        Require.positive("Driver max sessions", driverMaxSessions);
+
         WebDriverInfo driverInfoConfig = createConfiguredDriverInfo(info, stereotype, configName);
 
         builders.stream()
           .filter(builder -> builder.score(stereotype) > 0)
-          .forEach(builder -> {
+          .max(Comparator.comparingInt(builder -> builder.score(stereotype)))
+          .ifPresent(builder -> {
             int maxDriverSessions = getDriverMaxSessions(info, driverMaxSessions);
             for (int i = 0; i < maxDriverSessions; i++) {
               driverConfigs.putAll(driverInfoConfig, factoryFactory.apply(stereotype));
@@ -415,7 +475,8 @@ public class NodeOptions {
       Capabilities caps = enhanceStereotype(info.getCanonicalCapabilities());
       builders.stream()
         .filter(builder -> builder.score(caps) > 0)
-        .forEach(builder -> {
+        .max(Comparator.comparingInt(builder -> builder.score(caps)))
+        .ifPresent(builder -> {
           int maxDriverSessions = getDriverMaxSessions(info, maxSessions);
           for (int i = 0; i < maxDriverSessions; i++) {
             toReturn.putAll(info, factoryFactory.apply(caps));

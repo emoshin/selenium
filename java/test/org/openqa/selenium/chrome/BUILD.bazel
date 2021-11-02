@@ -11,6 +11,13 @@ java_selenium_test_suite(
     data = [
         "//third_party/chrome_ext:backspace.crx",
     ],
+    javacopts = [
+        "--release",
+        "11",
+    ],
+    tags = [
+        "selenium-remote",
+    ],
     deps = [
         "//java/src/org/openqa/selenium/chrome",
         "//java/src/org/openqa/selenium/remote",
@@ -18,6 +25,7 @@ java_selenium_test_suite(
         "//java/test/org/openqa/selenium/build",
         "//java/test/org/openqa/selenium/testing:annotations",
         "//java/test/org/openqa/selenium/testing:test-base",
+        "//java/test/org/openqa/selenium/testing/drivers",
         artifact("junit:junit"),
         artifact("org.assertj:assertj-core"),
         artifact("org.mockito:mockito-core"),

@@ -17,7 +17,6 @@
 package org.openqa.selenium.edge;
 
 import com.google.auto.service.AutoService;
-
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.SessionNotCreatedException;
@@ -25,11 +24,11 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebDriverInfo;
 import org.openqa.selenium.chromium.ChromiumDriverInfo;
-import org.openqa.selenium.remote.BrowserType;
 
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.openqa.selenium.remote.Browser.EDGE;
 import static org.openqa.selenium.remote.CapabilityType.BROWSER_NAME;
 
 @AutoService(WebDriverInfo.class)
@@ -42,17 +41,14 @@ public class EdgeDriverInfo extends ChromiumDriverInfo {
 
   @Override
   public Capabilities getCanonicalCapabilities() {
-    return new ImmutableCapabilities(BROWSER_NAME, BrowserType.EDGE);
+    return new ImmutableCapabilities(BROWSER_NAME, EDGE.browserName());
   }
 
   @Override
   public boolean isSupporting(Capabilities capabilities) {
-    return (BrowserType.EDGE.equalsIgnoreCase(capabilities.getBrowserName())
-            || capabilities.getCapability("ms:edgeOptions") != null
-            || capabilities.getCapability("edgeOptions") != null)
-           &&
-           (capabilities.getCapability(EdgeOptions.USE_CHROMIUM) == null
-            || Objects.equals(capabilities.getCapability(EdgeOptions.USE_CHROMIUM), true));
+    return EDGE.is(capabilities.getBrowserName())
+           || capabilities.getCapability("ms:edgeOptions") != null
+           || capabilities.getCapability("edgeOptions") != null;
   }
 
   @Override

@@ -16,9 +16,10 @@
 // under the License.
 package org.openqa.selenium.edge;
 
+import static org.openqa.selenium.remote.Browser.EDGE;
+
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.chromium.ChromiumOptions;
-import org.openqa.selenium.remote.BrowserType;
 import org.openqa.selenium.remote.CapabilityType;
 
 /**
@@ -43,18 +44,13 @@ import org.openqa.selenium.remote.CapabilityType;
 public class EdgeOptions extends ChromiumOptions<EdgeOptions> {
 
   /**
-   * Key used to indicate whether to use an Edge Chromium or Edge Legacy driver.
-   */
-  public static final String USE_CHROMIUM = "ms:edgeChromium";
-
-  /**
    * Key used to store a set of ChromeOptions in a {@link Capabilities}
    * object.
    */
   public static final String CAPABILITY = "ms:edgeOptions";
 
   public EdgeOptions() {
-    super(CapabilityType.BROWSER_NAME, BrowserType.EDGE, CAPABILITY);
+    super(CapabilityType.BROWSER_NAME, EDGE.browserName(), CAPABILITY);
   }
 
   @Override

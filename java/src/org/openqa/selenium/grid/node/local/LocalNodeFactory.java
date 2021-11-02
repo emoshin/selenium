@@ -23,12 +23,13 @@ import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.grid.config.Config;
 import org.openqa.selenium.grid.data.DefaultSlotMatcher;
 import org.openqa.selenium.grid.data.SlotMatcher;
-import org.openqa.selenium.grid.docker.DockerOptions;
 import org.openqa.selenium.grid.log.LoggingOptions;
 import org.openqa.selenium.grid.node.Node;
 import org.openqa.selenium.grid.node.SessionFactory;
 import org.openqa.selenium.grid.node.config.DriverServiceSessionFactory;
 import org.openqa.selenium.grid.node.config.NodeOptions;
+import org.openqa.selenium.grid.node.docker.DockerOptions;
+import org.openqa.selenium.grid.node.relay.RelayOptions;
 import org.openqa.selenium.grid.security.SecretOptions;
 import org.openqa.selenium.grid.server.BaseServerOptions;
 import org.openqa.selenium.grid.server.EventBusOptions;
@@ -37,8 +38,10 @@ import org.openqa.selenium.remote.http.HttpClient;
 import org.openqa.selenium.remote.service.DriverService;
 import org.openqa.selenium.remote.tracing.Tracer;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.ServiceLoader;
 
@@ -78,6 +81,11 @@ public class LocalNodeFactory {
         .forEach((caps, factories) -> factories.forEach(factory -> builder.add(caps, factory)));
     }
 
+    if (config.getAll("relay", "configs").isPresent()) {
+      new RelayOptions(config).getSessionFactories(tracer, clientFactory)
+        .forEach((caps, factories) -> factories.forEach(factory -> builder.add(caps, factory)));
+    }
+
     return builder.build();
   }
 
@@ -88,10 +96,13 @@ public class LocalNodeFactory {
     Capabilities stereotype) {
     ImmutableList.Builder<SessionFactory> toReturn = ImmutableList.builder();
     SlotMatcher slotMatcher = new DefaultSlotMatcher();
+    String webDriverExecutablePath =
+      String.valueOf(stereotype.asMap().getOrDefault("se:webDriverExecutable", ""));
 
     builders.stream()
       .filter(builder -> builder.score(stereotype) > 0)
-      .forEach(builder -> {
+      .max(Comparator.comparingInt(builder -> builder.score(stereotype)))
+      .ifPresent(builder -> {
         DriverService.Builder<?, ?> driverServiceBuilder;
         Class<?> clazz = builder.getClass();
         try {
@@ -100,6 +111,10 @@ public class LocalNodeFactory {
           // and the DriverService creation needs to be thread safe.
           Object driverBuilder = clazz.newInstance();
           driverServiceBuilder = ((DriverService.Builder<?, ?>) driverBuilder).usingAnyFreePort();
+          if (!webDriverExecutablePath.isEmpty()) {
+            driverServiceBuilder =
+              driverServiceBuilder.usingDriverExecutable(new File(webDriverExecutablePath));
+          }
         } catch (InstantiationException | IllegalAccessException e) {
           throw new IllegalArgumentException(String.format(
             "Class %s could not be found or instantiated", clazz));

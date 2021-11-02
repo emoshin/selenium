@@ -21,29 +21,19 @@ import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.remote.AbstractDriverOptions;
-import org.openqa.selenium.remote.BrowserType;
 import org.openqa.selenium.remote.CapabilityType;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 
 import static java.util.stream.Collectors.toMap;
 import static org.openqa.selenium.firefox.FirefoxDriver.Capability.BINARY;
 import static org.openqa.selenium.firefox.FirefoxDriver.Capability.MARIONETTE;
 import static org.openqa.selenium.firefox.FirefoxDriver.Capability.PROFILE;
+import static org.openqa.selenium.remote.Browser.FIREFOX;
 
 /**
  * Manage firefox specific settings in a way that geckodriver can understand.
@@ -64,7 +54,7 @@ public class FirefoxOptions extends AbstractDriverOptions<FirefoxOptions> {
   private boolean legacy;
 
   public FirefoxOptions() {
-    setCapability(CapabilityType.BROWSER_NAME, BrowserType.FIREFOX);
+    setCapability(CapabilityType.BROWSER_NAME, FIREFOX.browserName());
     setAcceptInsecureCerts(true);
     setCapability("moz:debuggerAddress", true);
   }
@@ -91,7 +81,7 @@ public class FirefoxOptions extends AbstractDriverOptions<FirefoxOptions> {
       if (rawOptions != null) {
         // If `source` contains the keys we care about, then make sure they're good.
         Require.stateCondition(rawOptions instanceof Map, "Expected options to be a map: %s", rawOptions);
-        Map<String, Object> sourceOptions = (Map<String, Object>) rawOptions;
+        @SuppressWarnings("unchecked") Map<String, Object> sourceOptions = (Map<String, Object>) rawOptions;
         Map<String, Object> options = new TreeMap<>();
         for (Keys key : Keys.values()) {
           key.amend(sourceOptions, options);
@@ -120,6 +110,16 @@ public class FirefoxOptions extends AbstractDriverOptions<FirefoxOptions> {
     this.legacy = that.legacy;
   }
 
+  /**
+   * Configures the following:
+   * <dl>
+   *   <dt>Binary</dt>
+   *   <dd>{@code webdriver.firefox.bin} - the path to the firefox binary</dd>
+   *
+   *   <dt>Firefox profile</dt>
+   *   <dd>{@code webdriver.firefox.profile} - a named firefox profile</dd>
+   * </dl>
+   */
   public FirefoxOptions configureFromEnv() {
     // Read system properties and use those if they are set, allowing users to override them later
     // should they want to.
@@ -261,9 +261,8 @@ public class FirefoxOptions extends AbstractDriverOptions<FirefoxOptions> {
     Object rawPrefs = firefoxOptions.getOrDefault(Keys.PREFS.key(), new HashMap<>());
     Require.stateCondition(rawPrefs instanceof Map, "Prefs are of unexpected type: %s", rawPrefs);
 
-    Map<String, Object> newPrefs = new TreeMap<>();
     @SuppressWarnings("unchecked") Map<String, Object> prefs = (Map<String, Object>) rawPrefs;
-    newPrefs.putAll(prefs);
+    Map<String, Object> newPrefs = new TreeMap<>(prefs);
     newPrefs.put(key, value);
 
     return setFirefoxOption(Keys.PREFS, Collections.unmodifiableMap(newPrefs));
@@ -288,6 +287,31 @@ public class FirefoxOptions extends AbstractDriverOptions<FirefoxOptions> {
       newArgs.add("-headless");
     }
     return setFirefoxOption(Keys.ARGS, Collections.unmodifiableList(newArgs));
+  }
+
+  public FirefoxOptions setAndroidPackage(String androidPackage) {
+    Require.nonNull("Android package", androidPackage);
+    return setFirefoxOption("androidPackage", androidPackage);
+  }
+
+  public FirefoxOptions setAndroidActivity(String activity) {
+    Require.nonNull("Android activity", activity);
+    return setFirefoxOption("androidActivity", activity);
+  }
+
+  public FirefoxOptions setAndroidDeviceSerialNumber(String serial) {
+    Require.nonNull("Android device serial number", serial);
+    return setFirefoxOption("androidDeviceSerial", serial);
+  }
+
+  public FirefoxOptions setAndroidIntentArguments(String[] args) {
+    Require.nonNull("Android intent arguments", args);
+    return setAndroidIntentArguments(Arrays.asList(args));
+  }
+
+  public FirefoxOptions setAndroidIntentArguments(List<String> args) {
+    Require.nonNull("Android intent arguments", args);
+    return setFirefoxOption("androidIntentArguments", args);
   }
 
   @Override
@@ -336,8 +360,15 @@ public class FirefoxOptions extends AbstractDriverOptions<FirefoxOptions> {
   }
 
   private FirefoxOptions setFirefoxOption(Keys key, Object value) {
+    return setFirefoxOption(key.key(), value);
+  }
+
+  private FirefoxOptions setFirefoxOption(String key, Object value) {
+    Require.nonNull("Key", key);
+    Require.nonNull("Value", value);
+
     Map<String, Object> newOptions = new TreeMap<>(firefoxOptions);
-    newOptions.put(key.key(), value);
+    newOptions.put(key, value);
     firefoxOptions = Collections.unmodifiableMap(newOptions);
     return this;
   }
@@ -384,6 +415,17 @@ public class FirefoxOptions extends AbstractDriverOptions<FirefoxOptions> {
   }
 
   private enum Keys {
+    ANDROID_PACKAGE("androidPackage") {
+      @Override
+      public void amend(Map<String, Object> sourceOptions, Map<String, Object> toAmend) {
+
+      }
+
+      @Override
+      public Object mirror(Map<String, Object> first, Map<String, Object> second) {
+        return null;
+      }
+    },
     ARGS("args") {
       @Override
       public void amend(Map<String, Object> sourceOptions, Map<String, Object> toAmend) {

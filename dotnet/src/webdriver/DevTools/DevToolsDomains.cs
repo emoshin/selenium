@@ -37,9 +37,10 @@ namespace OpenQA.Selenium.DevTools
         // added to this dictionary.
         private static readonly Dictionary<int, Type> SupportedDevToolsVersions = new Dictionary<int, Type>()
         {
-            { 92, typeof(V92.V92Domains) },
-            { 91, typeof(V91.V91Domains) },
-            { 85, typeof(V85.V85Domains) }  
+            { 95, typeof(V95.V95Domains) },
+            { 94, typeof(V94.V94Domains) },
+            { 93, typeof(V93.V93Domains) },
+            { 85, typeof(V85.V85Domains) }
         };
 
         /// <summary>
@@ -89,7 +90,7 @@ namespace OpenQA.Selenium.DevTools
         {
             if (versionRange < 0)
             {
-                throw new ArgumentException("Version range must be positive", "versionRange");
+                throw new ArgumentException("Version range must be positive", nameof(versionRange));
             }
 
             DevToolsDomains domains = null;

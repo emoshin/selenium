@@ -17,6 +17,7 @@
 
 package org.openqa.selenium.remote;
 
+import static org.openqa.selenium.remote.Browser.HTMLUNIT;
 import static org.openqa.selenium.remote.CapabilityType.ACCEPT_INSECURE_CERTS;
 import static org.openqa.selenium.remote.CapabilityType.BROWSER_NAME;
 import static org.openqa.selenium.remote.CapabilityType.PLATFORM;
@@ -28,11 +29,8 @@ import org.openqa.selenium.MutableCapabilities;
 import org.openqa.selenium.Platform;
 
 import java.util.Map;
-import java.util.logging.Logger;
 
 public class DesiredCapabilities extends MutableCapabilities {
-
-  private static final Logger LOG = Logger.getLogger(Capabilities.class.getName());
 
   public DesiredCapabilities(String browser, String version, Platform platform) {
     setCapability(BROWSER_NAME, browser);
@@ -60,6 +58,11 @@ public class DesiredCapabilities extends MutableCapabilities {
     for (Capabilities caps : others) {
       merge(caps);
     }
+  }
+
+  @Deprecated
+  public static DesiredCapabilities htmlUnit() {
+    return new DesiredCapabilities(HTMLUNIT.browserName(), "", Platform.ANY);
   }
 
   public void setBrowserName(String browserName) {
@@ -108,10 +111,5 @@ public class DesiredCapabilities extends MutableCapabilities {
       extraCapabilities.asMap().forEach(this::setCapability);
     }
     return this;
-  }
-
-  @Deprecated
-  public static DesiredCapabilities htmlUnit() {
-    return new DesiredCapabilities(BrowserType.HTMLUNIT, "", Platform.ANY);
   }
 }

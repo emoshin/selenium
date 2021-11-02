@@ -18,7 +18,6 @@
 package org.openqa.selenium.grid.node.config;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.assertj.core.api.Condition;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -41,11 +40,13 @@ import org.openqa.selenium.internal.Either;
 import org.openqa.selenium.json.Json;
 
 import java.io.StringReader;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -262,11 +263,11 @@ public class NodeOptionsTest {
       "[node]",
       "detect-drivers = false",
       "[[node.driver-configuration]]",
-      "name = \"Chrome Beta\"",
+      "display-name = \"Chrome Beta\"",
       "max-sessions = 1",
       String.format("stereotype = \"%s\"", chromeCaps.toString().replace("\"", "\\\"")),
       "[[node.driver-configuration]]",
-      "name = \"Firefox Nightly\"",
+      "display-name = \"Firefox Nightly\"",
       "max-sessions = 2",
       String.format("stereotype = \"%s\"", firefoxCaps.toString().replace("\"", "\\\""))
     };
@@ -304,19 +305,69 @@ public class NodeOptionsTest {
   }
 
   @Test
+  public void driversCanBeConfiguredWithASpecificWebDriverBinary() {
+    String chLocation = "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta";
+    String ffLocation = "/Applications/Firefox Nightly.app/Contents/MacOS/firefox-bin";
+    String chromeDriverLocation = "/path/to/chromedriver_beta/chromedriver";
+    String geckoDriverLocation = "/path/to/geckodriver_nightly/geckodriver";
+    ChromeOptions chromeOptions = new ChromeOptions();
+    chromeOptions.setBinary(chLocation);
+    FirefoxOptions firefoxOptions = new FirefoxOptions();
+    firefoxOptions.setBinary(ffLocation);
+    StringBuilder chromeCaps = new StringBuilder();
+    StringBuilder firefoxCaps = new StringBuilder();
+    new Json().newOutput(chromeCaps).setPrettyPrint(false).write(chromeOptions);
+    new Json().newOutput(firefoxCaps).setPrettyPrint(false).write(firefoxOptions);
+
+    String[] rawConfig = new String[]{
+      "[node]",
+      "detect-drivers = false",
+      "[[node.driver-configuration]]",
+      "display-name = \"Chrome Beta\"",
+      String.format("webdriver-executable = '%s'", chromeDriverLocation),
+      String.format("stereotype = \"%s\"", chromeCaps.toString().replace("\"", "\\\"")),
+      "[[node.driver-configuration]]",
+      "display-name = \"Firefox Nightly\"",
+      String.format("webdriver-executable = '%s'", geckoDriverLocation),
+      String.format("stereotype = \"%s\"", firefoxCaps.toString().replace("\"", "\\\""))
+    };
+    Config config = new TomlConfig(new StringReader(String.join("\n", rawConfig)));
+
+    List<Capabilities> reported = new ArrayList<>();
+    new NodeOptions(config).getSessionFactories(capabilities -> {
+      reported.add(capabilities);
+      return Collections.singleton(HelperFactory.create(config, capabilities));
+    });
+
+    assertThat(reported).is(supporting("chrome"));
+    assertThat(reported).is(supporting("firefox"));
+    assertThat(reported)
+      .filteredOn(capabilities -> capabilities.asMap().containsKey(ChromeOptions.CAPABILITY))
+      .allMatch(
+        capabilities ->
+          chromeDriverLocation.equals(capabilities.getCapability("se:webDriverExecutable")));
+
+    assertThat(reported)
+      .filteredOn(capabilities -> capabilities.asMap().containsKey(FirefoxOptions.FIREFOX_OPTIONS))
+      .anyMatch(
+        capabilities ->
+          geckoDriverLocation.equals(capabilities.getCapability("se:webDriverExecutable")));
+  }
+
+  @Test
   public void driversConfigNeedsStereotypeField() {
     String[] rawConfig = new String[]{
       "[node]",
       "detect-drivers = false",
       "[[node.driver-configuration]]",
-      "name = \"Chrome Beta\"",
+      "display-name = \"Chrome Beta\"",
       "max-sessions = 2",
       "cheese = \"paipa\"",
       "[[node.driver-configuration]]",
-      "name = \"Firefox Nightly\"",
+      "display-name = \"Firefox Nightly\"",
       "max-sessions = 2",
       "cheese = \"sabana\"",
-    };
+      };
     Config config = new TomlConfig(new StringReader(String.join("\n", rawConfig)));
 
     List<Capabilities> reported = new ArrayList<>();
@@ -333,6 +384,31 @@ public class NodeOptionsTest {
 
     assertThat(reported).isEmpty();
   }
+
+  @Test
+  public void maxSessionsFieldIsOptionalInDriversConfig() {
+    String[] rawConfig = new String[]{
+      "[node]",
+      "detect-drivers = false",
+      "[[node.driver-configuration]]",
+      "display-name = \"Chrome Beta\"",
+      "stereotype = '{\"browserName\": \"chrome\"}'",
+      "[[node.driver-configuration]]",
+      "display-name = \"Firefox Nightly\"",
+      "stereotype = '{\"browserName\": \"firefox\"}'",
+      };
+    Config config = new TomlConfig(new StringReader(String.join("\n", rawConfig)));
+
+    List<Capabilities> reported = new ArrayList<>();
+    new NodeOptions(config).getSessionFactories(capabilities -> {
+      reported.add(capabilities);
+      return Collections.singleton(HelperFactory.create(config, capabilities));
+    });
+
+    assertThat(reported).is(supporting("chrome"));
+    assertThat(reported).is(supporting("firefox"));
+  }
+
 
   @Test
   public void shouldNotOverrideMaxSessionsByDefault() {
@@ -381,6 +457,18 @@ public class NodeOptionsTest {
       .filter(capabilities -> "chrome".equalsIgnoreCase(capabilities.getBrowserName()))
       .count();
     assertThat(chromeSlots).isEqualTo(overriddenMaxSessions);
+  }
+
+  @Test
+  public void settingTheHubFlagSetsTheGridUrlAndEventBusFlags() {
+    String[] rawConfig = new String[]{
+      "[node]",
+      "hub-address = \"cheese.com\"",
+    };
+    Config config = new TomlConfig(new StringReader(String.join("\n", rawConfig)));
+
+    NodeOptions nodeOptions = new NodeOptions(config);
+    assertThat(nodeOptions.getPublicGridUri()).isEqualTo(Optional.of(URI.create("http://cheese.com:4444")));
   }
 
   private Condition<? super List<? extends Capabilities>> supporting(String name) {

@@ -21,12 +21,14 @@ const assert = require('assert')
 
 const chrome = require('../chrome')
 const edge = require('../edge')
+const error = require('../lib/error')
 const firefox = require('../firefox')
 const ie = require('../ie')
 const safari = require('../safari')
 const test = require('../lib/test')
 const { Browser } = require('../lib/capabilities')
 const { Pages } = require('../lib/test')
+const { Builder, Capabilities } = require('..')
 
 test.suite(function (env) {
   const BROWSER_MAP = new Map([
@@ -68,4 +70,54 @@ test.suite(function (env) {
       })
     })
   }
+
+  if (BROWSER_MAP.has(env.browser.name)) {
+    describe('builder allows to set a single capability', function () {
+      let driver
+
+      after(() => driver && driver.quit())
+
+      it(env.browser.name, async function () {
+        let timeouts = { implicit: 0, pageLoad: 1000, script: 1000 }
+        driver = new Builder()
+          .setCapability('timeouts', timeouts)
+          .forBrowser(env.browser.name)
+          .build()
+
+        let caps = await getCaps(driver);
+        assert.deepEqual(caps.get('timeouts'), timeouts)
+      })
+    })
+  }
+
+  async function getCaps(driver) {
+    return driver.getCapabilities();
+  }
+
+  describe('Builder', function () {
+    describe('catches incorrect use of browser options class', function () {
+      function test(key, options) {
+        it(key, async function () {
+          let builder = new Builder().withCapabilities(
+            new Capabilities()
+              .set('browserName', 'fake-browser-should-not-try-to-start')
+              .set(key, new options())
+          )
+          try {
+            let driver = await builder.build()
+            await driver.quit()
+            return Promise.reject(Error('should have failed'))
+          } catch (ex) {
+            if (!(ex instanceof error.InvalidArgumentError)) {
+              throw ex
+            }
+          }
+        })
+      }
+
+      test('chromeOptions', chrome.Options)
+      test('moz:firefoxOptions', firefox.Options)
+      test('safari.options', safari.Options)
+    })
+  })
 })

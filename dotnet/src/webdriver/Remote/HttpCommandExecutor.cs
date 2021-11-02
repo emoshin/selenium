@@ -17,6 +17,7 @@
 // </copyright>
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -43,6 +44,7 @@ namespace OpenQA.Selenium.Remote
         private const string UserAgentHeaderTemplate = "selenium/{0} (.net {1})";
         private Uri remoteServerUri;
         private TimeSpan serverResponseTimeout;
+        private string userAgent;
         private bool enableKeepAlive;
         private bool isDisposed;
         private IWebProxy proxy;
@@ -70,7 +72,7 @@ namespace OpenQA.Selenium.Remote
         {
             if (addressOfRemoteServer == null)
             {
-                throw new ArgumentNullException("addressOfRemoteServer", "You must specify a remote address to connect to");
+                throw new ArgumentNullException(nameof(addressOfRemoteServer), "You must specify a remote address to connect to");
             }
 
             if (!addressOfRemoteServer.AbsoluteUri.EndsWith("/", StringComparison.OrdinalIgnoreCase))
@@ -78,6 +80,7 @@ namespace OpenQA.Selenium.Remote
                 addressOfRemoteServer = new Uri(addressOfRemoteServer.ToString() + "/");
             }
 
+            this.userAgent = string.Format(CultureInfo.InvariantCulture, UserAgentHeaderTemplate, ResourceUtilities.AssemblyVersion, ResourceUtilities.PlatformFamily);
             this.remoteServerUri = addressOfRemoteServer;
             this.serverResponseTimeout = timeout;
             this.enableKeepAlive = enableKeepAlive;
@@ -88,15 +91,6 @@ namespace OpenQA.Selenium.Remote
         /// request to the remote end WebDriver implementation.
         /// </summary>
         public event EventHandler<SendingRemoteHttpRequestEventArgs> SendingRemoteHttpRequest;
-
-        /// <summary>
-        /// Gets the repository of objects containin information about commands.
-        /// </summary>
-        //public CommandInfoRepository CommandInfoRepository
-        //{
-        //    get { return this.commandInfoRepository; }
-        //    protected set { this.commandInfoRepository = value; }
-        //}
 
         /// <summary>
         /// Gets or sets an <see cref="IWebProxy"/> object to be used to proxy requests
@@ -120,6 +114,32 @@ namespace OpenQA.Selenium.Remote
             set { this.enableKeepAlive = value; }
         }
 
+        /// <summary>
+        /// Gets or sets the user agent string used for HTTP communication
+        /// batween this <see cref="HttpCommandExecutor"/> and the remote end
+        /// WebDriver implementation
+        /// </summary>
+        public string UserAgent
+        {
+            get { return this.userAgent; }
+            set { this.userAgent = value; }
+        }
+
+        /// <summary>
+        /// Gets the repository of objects containing information about commands.
+        /// </summary>
+        protected CommandInfoRepository CommandInfoRepository
+        {
+            get { return this.commandInfoRepository; }
+            set { this.commandInfoRepository = value; }
+        }
+
+        /// <summary>
+        /// Attempts to add a command to the repository of commands known to this executor.
+        /// </summary>
+        /// <param name="commandName">The name of the command to attempt to add.</param>
+        /// <param name="info">The <see cref="CommandInfo"/> describing the commnd to add.</param>
+        /// <returns><see langword="true"/> if the new command has been added successfully; otherwise, <see langword="false"/>.</returns>
         public bool TryAddCommand(string commandName, CommandInfo info)
         {
             HttpCommandInfo commandInfo = info as HttpCommandInfo;
@@ -140,7 +160,7 @@ namespace OpenQA.Selenium.Remote
         {
             if (commandToExecute == null)
             {
-                throw new ArgumentNullException("commandToExecute", "commandToExecute cannot be null");
+                throw new ArgumentNullException(nameof(commandToExecute), "commandToExecute cannot be null");
             }
 
             HttpCommandInfo info = this.commandInfoRepository.GetCommandInfo<HttpCommandInfo>(commandToExecute.Name);
@@ -211,7 +231,7 @@ namespace OpenQA.Selenium.Remote
         {
             if (eventArgs == null)
             {
-                throw new ArgumentNullException("eventArgs", "eventArgs must not be null");
+                throw new ArgumentNullException(nameof(eventArgs), "eventArgs must not be null");
             }
 
             if (this.SendingRemoteHttpRequest != null)
@@ -234,10 +254,9 @@ namespace OpenQA.Selenium.Remote
             httpClientHandler.Proxy = this.Proxy;
 
             this.client = new HttpClient(httpClientHandler);
-            string userAgentString = string.Format(CultureInfo.InvariantCulture, UserAgentHeaderTemplate, ResourceUtilities.AssemblyVersion, ResourceUtilities.PlatformFamily);
-            this.client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgentString);
-
+            this.client.DefaultRequestHeaders.UserAgent.ParseAdd(this.UserAgent);
             this.client.DefaultRequestHeaders.Accept.ParseAdd(RequestAcceptHeader);
+            this.client.DefaultRequestHeaders.ExpectContinue = false;
             if (!this.IsKeepAliveEnabled)
             {
                 this.client.DefaultRequestHeaders.Connection.ParseAdd("close");
@@ -254,6 +273,11 @@ namespace OpenQA.Selenium.Remote
             HttpMethod method = new HttpMethod(requestInfo.HttpMethod);
             using (HttpRequestMessage requestMessage = new HttpRequestMessage(method, requestInfo.FullUri))
             {
+                foreach (KeyValuePair<string, string> header in eventArgs.Headers)
+                {
+                    requestMessage.Headers.Add(header.Key, header.Value);
+                }
+
                 if (requestInfo.HttpMethod == HttpCommandInfo.GetCommand)
                 {
                     CacheControlHeaderValue cacheControlHeader = new CacheControlHeaderValue();
@@ -291,7 +315,7 @@ namespace OpenQA.Selenium.Remote
         {
             Response response = new Response();
             string body = responseInfo.Body;
-            if (responseInfo.ContentType != null && responseInfo.ContentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
+            if (responseInfo.ContentType != null && responseInfo.ContentType.StartsWith(JsonMimeType, StringComparison.OrdinalIgnoreCase))
             {
                 response = Response.FromJson(body);
             }

@@ -29,7 +29,6 @@ const input = require('./input')
 const logging = require('./logging')
 const promise = require('./promise')
 const Symbols = require('./symbols')
-const cdpTargets = ['page', 'browser']
 const cdp = require('../devtools/CDPConnection')
 const WebSocket = require('ws')
 const http = require('../http/index')
@@ -37,19 +36,21 @@ const fs = require('fs')
 const { Capabilities } = require('./capabilities')
 const path = require('path')
 const { NoSuchElementError } = require('./error')
+const cdpTargets = ['page', 'browser']
 
 // Capability names that are defined in the W3C spec.
 const W3C_CAPABILITY_NAMES = new Set([
   'acceptInsecureCerts',
   'browserName',
   'browserVersion',
-  'platformName',
   'pageLoadStrategy',
+  'platformName',
   'proxy',
   'setWindowRect',
-  'timeouts',
   'strictFileInteractability',
+  'timeouts',
   'unhandledPromptBehavior',
+  'webSocketUrl'
 ])
 
 /**
@@ -1198,8 +1199,7 @@ class WebDriver {
       caps['map_'].get('moz:debuggerAddress') ||
       new Map()
     const debuggerUrl = seCdp || vendorInfo['debuggerAddress'] || vendorInfo
-    this._wsUrl = await this.getWsUrl(debuggerUrl, target)
-
+    this._wsUrl = await this.getWsUrl(debuggerUrl, target, caps)
     return new Promise((resolve, reject) => {
       try {
         this._wsConnection = new WebSocket(this._wsUrl)
@@ -1222,30 +1222,38 @@ class WebDriver {
   /**
    * Retrieves 'webSocketDebuggerUrl' by sending a http request using debugger address
    * @param {string} debuggerAddress
-   * @param {string} target
+   * @param target
+   * @param caps
    * @return {string} Returns parsed webSocketDebuggerUrl obtained from the http request
    */
-  async getWsUrl(debuggerAddress, target) {
+  async getWsUrl(debuggerAddress, target, caps) {
     if (target && cdpTargets.indexOf(target.toLowerCase()) === -1) {
       throw new error.InvalidArgumentError('invalid target value')
     }
+
+    if (debuggerAddress.match(/\/se\/cdp/)) {
+      return debuggerAddress;
+    }
+
     let path
-    if (target === 'page') {
+    if (target === 'page' && caps['map_'].get('browserName')!=='firefox' ){
       path = '/json'
-    } else {
+    } else if(target === 'page' && caps['map_'].get('browserName')==='firefox'){
+      path = '/json/list'
+    }
+    else {
       path = '/json/version'
     }
+
     let request = new http.Request('GET', path)
     let client = new http.HttpClient('http://' + debuggerAddress)
     let response = await client.send(request)
-    let url
-    if (target.toLowerCase() === 'page') {
-      url = JSON.parse(response.body)[0]['webSocketDebuggerUrl']
-    } else {
-      url = JSON.parse(response.body)['webSocketDebuggerUrl']
-    }
 
-    return url
+    if (target.toLowerCase() === 'page') {
+      return JSON.parse(response.body)[0]['webSocketDebuggerUrl']
+    } else {
+      return JSON.parse(response.body)['webSocketDebuggerUrl']
+    }
   }
 
   /**
@@ -1257,14 +1265,6 @@ class WebDriver {
    * @param connection CDP Connection
    */
   async register(username, password, connection) {
-    await connection.execute(
-      'Network.setCacheDisabled',
-      this.getRandomNumber(1, 10),
-      {
-        cacheDisabled: true,
-      },
-      null
-    )
 
     this._wsConnection.on('message', (message) => {
       const params = JSON.parse(message)
@@ -1303,8 +1303,69 @@ class WebDriver {
       },
       null
     )
+    await connection.execute(
+      'Network.setCacheDisabled',
+      this.getRandomNumber(1, 10),
+      {
+        cacheDisabled: true,
+      },
+      null
+    )
   }
 
+  /**
+   * Handle Network interception requests
+   * @param connection WebSocket connection to the browser
+   * @param httpResponse Object representing what we are intercepting
+   *                     as well as what should be returned.
+   * @param callback callback called when we intercept requests.
+   */
+  async onIntercept(connection, httpResponse, callback) {
+
+    this._wsConnection.on('message', (message) => {
+      const params = JSON.parse(message)
+      if (params.method === 'Fetch.requestPaused') {
+        const requestPausedParams = params['params']
+        if (requestPausedParams.request.url == httpResponse.urlToIntercept) {
+          connection.execute(
+            'Fetch.continueRequest',
+            this.getRandomNumber(1, 10),
+            {
+              requestId: requestPausedParams['requestId'],
+              url: httpResponse.urlToIntercept,
+              method: httpResponse.method,
+              headers: httpResponse.headers,
+              postData: httpResponse.body
+            }
+          )
+          callback()
+        } else {
+          connection.execute(
+            'Fetch.continueRequest',
+            this.getRandomNumber(1, 10),
+            {
+              requestId: requestPausedParams['requestId'],
+            }
+          )
+        }
+      }
+    })
+
+    await connection.execute(
+      'Fetch.enable',
+      1,
+      {},
+      null
+    )
+    await connection.execute(
+      'Network.setCacheDisabled',
+      this.getRandomNumber(1, 10),
+      {
+        cacheDisabled: true,
+      },
+      null
+    )
+  }
   /**
    *
    * @param connection
@@ -1312,12 +1373,7 @@ class WebDriver {
    * @returns {Promise<void>}
    */
   async onLogEvent(connection, callback) {
-    await connection.execute(
-      'Runtime.enable',
-      this.getRandomNumber(1, 10),
-      {},
-      null
-    )
+
 
     this._wsConnection.on('message', (message) => {
       const params = JSON.parse(message)
@@ -1333,6 +1389,12 @@ class WebDriver {
         callback(event)
       }
     })
+    await connection.execute(
+      'Runtime.enable',
+      this.getRandomNumber(1, 10),
+      {},
+      null
+    )
   }
 
   /**
@@ -2105,7 +2167,7 @@ class TargetLocator {
    * @return {!WebElementPromise} The active element.
    */
   activeElement() {
-    var id = this.driver_.execute(
+    const id = this.driver_.execute(
       new command.Command(command.Name.GET_ACTIVE_ELEMENT)
     )
     return new WebElementPromise(this.driver_, id)
@@ -2197,7 +2259,7 @@ class TargetLocator {
    *     when the driver has changed focus to the new window.
    */
   newWindow(typeHint) {
-    var driver = this.driver_
+    const driver = this.driver_
     return this.driver_
       .execute(
         new command.Command(command.Name.SWITCH_TO_NEW_WINDOW).setParameter(
@@ -2219,10 +2281,10 @@ class TargetLocator {
    * @return {!AlertPromise} The open alert.
    */
   alert() {
-    var text = this.driver_.execute(
+    const text = this.driver_.execute(
       new command.Command(command.Name.GET_ALERT_TEXT)
     )
-    var driver = this.driver_
+    const driver = this.driver_
     return new AlertPromise(
       driver,
       text.then(function (text) {
@@ -2552,7 +2614,7 @@ class WebElement {
    *     requested CSS value.
    */
   getCssValue(cssStyleProperty) {
-    var name = command.Name.GET_ELEMENT_VALUE_OF_CSS_PROPERTY
+    const name = command.Name.GET_ELEMENT_VALUE_OF_CSS_PROPERTY
     return this.execute_(
       new command.Command(name).setParameter('propertyName', cssStyleProperty)
     )
@@ -2696,7 +2758,10 @@ class WebElement {
    *     when the form has been submitted.
    */
   submit() {
-    return this.execute_(new command.Command(command.Name.SUBMIT_ELEMENT))
+    const form = this.findElement({xpath:"./ancestor-or-self::form"});
+    this.driver_.executeScript("var e = arguments[0].ownerDocument.createEvent('Event');"+
+    "e.initEvent('submit', true, true);"+
+    "if (arguments[0].dispatchEvent(e)) { arguments[0].submit() }", form)
   }
 
   /**

@@ -8,6 +8,9 @@ java_selenium_test_suite(
     browsers = [
         "safari",
     ],
+    tags = [
+        "selenium-remote",
+    ],
     deps = [
         "//java/src/org/openqa/selenium/remote",
         "//java/src/org/openqa/selenium/safari",

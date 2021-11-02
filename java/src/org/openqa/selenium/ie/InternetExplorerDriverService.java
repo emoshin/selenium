@@ -17,13 +17,9 @@
 
 package org.openqa.selenium.ie;
 
-import static java.util.Collections.unmodifiableList;
-
 import com.google.auto.service.AutoService;
-
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.WebDriverException;
-import org.openqa.selenium.remote.BrowserType;
 import org.openqa.selenium.remote.service.DriverService;
 
 import java.io.File;
@@ -32,6 +28,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableList;
+import static org.openqa.selenium.remote.Browser.IE;
 
 /**
  * Manages the life and death of an IEDriverServer.
@@ -108,14 +107,14 @@ public class InternetExplorerDriverService extends DriverService {
     private Boolean silent = null;
 
     @Override
-    public int score(Capabilities capabilites) {
+    public int score(Capabilities capabilities) {
       int score = 0;
 
-      if (BrowserType.IE.equals(capabilites.getBrowserName())) {
+      if (IE.is(capabilities)) {
         score++;
       }
 
-      if (capabilites.getCapability(InternetExplorerOptions.IE_OPTIONS) != null) {
+      if (capabilities.getCapability(InternetExplorerOptions.IE_OPTIONS) != null) {
         score++;
       }
 

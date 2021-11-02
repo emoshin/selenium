@@ -17,14 +17,17 @@
 
 package org.openqa.selenium.safari;
 
-import static java.util.Collections.singletonMap;
-
-import org.openqa.selenium.Beta;
+import com.google.common.collect.ImmutableMap;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.WebDriverException;
+import org.openqa.selenium.internal.Require;
+import org.openqa.selenium.remote.CommandInfo;
 import org.openqa.selenium.remote.FileDetector;
 import org.openqa.selenium.remote.RemoteWebDriver;
-import org.openqa.selenium.remote.Response;
+import org.openqa.selenium.remote.service.DriverCommandExecutor;
+import org.openqa.selenium.remote.service.DriverService;
+
+import java.util.Map;
 
 /**
  * A WebDriver implementation that controls Safari using a browser extension
@@ -32,7 +35,10 @@ import org.openqa.selenium.remote.Response;
  *
  * This driver can be configured using the {@link SafariOptions} class.
  */
-public class SafariDriver extends RemoteWebDriver {
+public class SafariDriver extends RemoteWebDriver implements HasPermissions, HasDebugger {
+
+  private final HasPermissions permissions;
+  private final HasDebugger debugger;
 
   /**
    * Initializes a new SafariDriver} class with default {@link SafariOptions}.
@@ -79,6 +85,39 @@ public class SafariDriver extends RemoteWebDriver {
    */
   public SafariDriver(SafariDriverService safariServer, SafariOptions safariOptions) {
     super(new SafariDriverCommandExecutor(safariServer), safariOptions);
+    permissions = new AddHasPermissions().getImplementation(getCapabilities(), getExecuteMethod());
+    debugger = new AddHasDebugger().getImplementation(getCapabilities(), getExecuteMethod());
+  }
+
+  @Override
+  public void setPermissions(String permission, boolean value) {
+    Require.nonNull("Permission Name", permission);
+    Require.nonNull("Permission Value", value);
+
+    this.permissions.setPermissions(permission, value);
+  }
+
+  @Override
+  public Map<String, Boolean> getPermissions() {
+    return permissions.getPermissions();
+  }
+
+  @Override
+  public void attachDebugger() {
+    debugger.attachDebugger();
+  }
+
+  private static class SafariDriverCommandExecutor extends DriverCommandExecutor {
+    public SafariDriverCommandExecutor(DriverService service) {
+      super(service, getExtraCommands());
+    }
+
+    private static Map<String, CommandInfo> getExtraCommands() {
+      return ImmutableMap.<String, CommandInfo>builder()
+        .putAll(new AddHasPermissions().getAdditionalCommands())
+        .putAll(new AddHasDebugger().getAdditionalCommands())
+        .build();
+    }
   }
 
   @Override
@@ -86,25 +125,5 @@ public class SafariDriver extends RemoteWebDriver {
     throw new WebDriverException(
         "Setting the file detector only works on remote webdriver instances obtained " +
         "via RemoteWebDriver");
-  }
-
-  /**
-   * Open either a new tab or window, depending on what is requested, and return the window handle
-   * without switching to it.
-   *
-   * @return The handle of the new window.
-   */
-  @Beta
-  public String newWindow(WindowType type) {
-    Response response = execute(
-        "SAFARI_NEW_WINDOW",
-        singletonMap("newTab", type == WindowType.TAB));
-
-    return (String) response.getValue();
-  }
-
-  public enum WindowType {
-    TAB,
-    WINDOW,
   }
 }

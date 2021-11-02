@@ -40,7 +40,7 @@ namespace OpenQA.Selenium.Edge
         /// </summary>
         /// <param name="options">The <see cref="EdgeOptions"/> to be used with the Edge driver.</param>
         public EdgeDriver(EdgeOptions options)
-            : this(EdgeDriverService.CreateDefaultServiceFromOptions(options), options)
+            : this(EdgeDriverService.CreateDefaultService(), options)
         {
         }
 
@@ -49,7 +49,7 @@ namespace OpenQA.Selenium.Edge
         /// </summary>
         /// <param name="service">The <see cref="EdgeDriverService"/> used to initialize the driver.</param>
         public EdgeDriver(EdgeDriverService service)
-            : this(service, new EdgeOptions() { UseChromium = service.UsingChromium })
+            : this(service, new EdgeOptions())
         {
         }
 
@@ -82,7 +82,7 @@ namespace OpenQA.Selenium.Edge
         /// <param name="options">The <see cref="EdgeOptions"/> to be used with the Edge driver.</param>
         /// <param name="commandTimeout">The maximum amount of time to wait for each command.</param>
         public EdgeDriver(string edgeDriverDirectory, EdgeOptions options, TimeSpan commandTimeout)
-            : this(EdgeDriverService.CreateDefaultServiceFromOptions(edgeDriverDirectory, options), options, commandTimeout)
+            : this(EdgeDriverService.CreateDefaultService(edgeDriverDirectory), options, commandTimeout)
         {
         }
 
@@ -106,6 +106,12 @@ namespace OpenQA.Selenium.Edge
         public EdgeDriver(EdgeDriverService service, EdgeOptions options, TimeSpan commandTimeout)
             : base(service, options, commandTimeout)
         {
+            this.AddCustomChromeCommand(ExecuteCdp, HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cdp/execute");
+            this.AddCustomChromeCommand(GetCastSinksCommand, HttpCommandInfo.GetCommand, "/session/{sessionId}/ms/cast/get_sinks");
+            this.AddCustomChromeCommand(SelectCastSinkCommand, HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cast/set_sink_to_use");
+            this.AddCustomChromeCommand(StartCastTabMirroringCommand, HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cast/start_tab_mirroring");
+            this.AddCustomChromeCommand(GetCastIssueMessageCommand, HttpCommandInfo.GetCommand, "/session/{sessionId}/ms/cast/get_issue_message");
+            this.AddCustomChromeCommand(StopCastingCommand, HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cast/stop_casting");
         }
     }
 }

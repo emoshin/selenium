@@ -5,11 +5,13 @@ load("//common:defs.bzl", "copy_file")
 load("//py:defs.bzl", "py_test_suite")
 load("//py/private:browsers.bzl", "BROWSERS")
 
+SE_VERSION = "4.0.0"
+
 BROWSER_VERSIONS = [
     "v85",
-    "v90",
-    "v91",
-    "v92"
+    "v93",
+    "v94",
+    "v95",
 ]
 
 TEST_DEPS = [
@@ -134,7 +136,7 @@ py_wheel(
     strip_path_prefixes = [
         "py",
     ],
-    version = "4.0.0.b4",
+    version = SE_VERSION,
     visibility = ["//visibility:public"],
     deps = [
         ":selenium-pkg",
@@ -309,7 +311,7 @@ py_test_suite(
     ]),
     args = [
         "--instafail",
-        "--driver=Edge",
+        "--driver=edge",
     ],
     tags = [
         "no-sandbox",

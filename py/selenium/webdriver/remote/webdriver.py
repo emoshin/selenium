@@ -57,13 +57,14 @@ _W3C_CAPABILITY_NAMES = frozenset([
     'acceptInsecureCerts',
     'browserName',
     'browserVersion',
-    'platformName',
     'pageLoadStrategy',
+    'platformName',
     'proxy',
     'setWindowRect',
+    'strictFileInteractability',
     'timeouts',
     'unhandledPromptBehavior',
-    'strictFileInteractability'
+    'webSocketUrl'
 ])
 
 _OSS_W3C_CONVERSION = {
@@ -1117,7 +1118,7 @@ class WebDriver(BaseWebDriver):
 
         """
         if 'sameSite' in cookie_dict:
-            assert cookie_dict['sameSite'] in ['Strict', 'Lax']
+            assert cookie_dict['sameSite'] in ['Strict', 'Lax', 'None']
             self.execute(Command.ADD_COOKIE, {'cookie': cookie_dict})
         else:
             self.execute(Command.ADD_COOKIE, {'cookie': cookie_dict})
@@ -1219,6 +1220,9 @@ class WebDriver(BaseWebDriver):
 
         :rtype: WebElement
         """
+        if isinstance(by, RelativeBy):
+            return self.find_elements(by=by, value=value)[0]
+
         if by == By.ID:
             by = By.CSS_SELECTOR
             value = '[id="%s"]' % value
