@@ -21,6 +21,8 @@ import org.openqa.selenium.remote.tracing.Span;
 import org.openqa.selenium.remote.tracing.Tracer;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
 
 public class TracedCommandExecutor implements CommandExecutor {
 
@@ -35,7 +37,17 @@ public class TracedCommandExecutor implements CommandExecutor {
   @Override
   public Response execute(Command command) throws IOException {
     try (Span commandSpan = tracer.getCurrentContext().createSpan("command")) {
-      commandSpan.setAttribute("command", command.toString());
+      SessionId sessionId = command.getSessionId();
+      if (sessionId != null) {
+        commandSpan.setAttribute("sessionId", sessionId.toString());
+      }
+      commandSpan.setAttribute("command", command.getName());
+      Map<String, ?> parameters = command.getParameters();
+      if (parameters != null && parameters.size() > 0) {
+        for (Map.Entry<String, ?> parameter : parameters.entrySet()) {
+          commandSpan.setAttribute("parameter." + parameter.getKey(), Objects.toString(parameter.getValue(), "null"));
+        }
+      }
       return delegate.execute(command);
     }
   }

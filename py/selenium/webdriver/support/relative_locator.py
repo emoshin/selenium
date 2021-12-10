@@ -73,7 +73,7 @@ class RelativeBy(object):
 
     def __init__(self, root: Dict[By, str] = None, filters: List = None):
         """
-            Creates a new RelativeBy object. It is prefered if you use the
+            Creates a new RelativeBy object. It is preferred if you use the
             `locate_with` method as this signature could change.
             :Args:
                 root - A dict with `By` enum as the key and the search query as the value
@@ -133,7 +133,7 @@ class RelativeBy(object):
 
     def near(self, element_or_locator_distance: Union[WebElement, Dict, int] = None) -> "RelativeBy":
         """
-            Add a filter to look for elements above.
+            Add a filter to look for elements near.
             :Args:
                 - element_or_locator_distance: Element to look near by the element or within a distance
         """

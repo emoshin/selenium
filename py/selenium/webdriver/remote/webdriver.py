@@ -38,13 +38,15 @@ from .file_detector import FileDetector, LocalFileDetector
 from .mobile import Mobile
 from .remote_connection import RemoteConnection
 from .script_key import ScriptKey
+from .shadowroot import ShadowRoot
 from .switch_to import SwitchTo
 from .webelement import WebElement
 
 from selenium.common.exceptions import (InvalidArgumentException,
                                         JavascriptException,
                                         WebDriverException,
-                                        NoSuchCookieException)
+                                        NoSuchCookieException,
+                                        NoSuchElementException)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.options import BaseOptions
 from selenium.webdriver.common.print_page_options import PrintOptions
@@ -188,6 +190,7 @@ class WebDriver(BaseWebDriver):
     """
 
     _web_element_cls = WebElement
+    _shadowroot_cls = ShadowRoot
 
     def __init__(self, command_executor='http://127.0.0.1:4444',
                  desired_capabilities=None, browser_profile=None, proxy=None,
@@ -373,6 +376,8 @@ class WebDriver(BaseWebDriver):
             return converted
         elif isinstance(value, self._web_element_cls):
             return {'element-6066-11e4-a52e-4f735466cecf': value.id}
+        elif isinstance(value, self._shadowroot_cls):
+            return {'shadow-6066-11e4-a52e-4f735466cecf': value.id}
         elif isinstance(value, list):
             return list(self._wrap_value(item) for item in value)
         else:
@@ -386,6 +391,8 @@ class WebDriver(BaseWebDriver):
         if isinstance(value, dict):
             if 'element-6066-11e4-a52e-4f735466cecf' in value:
                 return self.create_web_element(value['element-6066-11e4-a52e-4f735466cecf'])
+            elif 'shadow-6066-11e4-a52e-4f735466cecf' in value:
+                return self._shadowroot_cls(self, value['shadow-6066-11e4-a52e-4f735466cecf'])
             else:
                 for key, val in value.items():
                     value[key] = self._unwrap_value(val)
@@ -1221,7 +1228,10 @@ class WebDriver(BaseWebDriver):
         :rtype: WebElement
         """
         if isinstance(by, RelativeBy):
-            return self.find_elements(by=by, value=value)[0]
+            elements = self.find_elements(by=by, value=value)
+            if not elements:
+                raise NoSuchElementException(f"Cannot locate relative element with: {by.root}")
+            return elements[0]
 
         if by == By.ID:
             by = By.CSS_SELECTOR
@@ -1335,7 +1345,7 @@ class WebDriver(BaseWebDriver):
         """
         return self.get_screenshot_as_file(filename)
 
-    def get_screenshot_as_png(self) -> str:
+    def get_screenshot_as_png(self) -> bytes:
         """
         Gets the screenshot of the current window as a binary data.
 
@@ -1372,7 +1382,7 @@ class WebDriver(BaseWebDriver):
                 driver.set_window_size(800,600)
         """
         if windowHandle != 'current':
-            warnings.warn("Only 'current' window is supported for W3C compatibile browsers.")
+            warnings.warn("Only 'current' window is supported for W3C compatible browsers.")
         self.set_window_rect(width=int(width), height=int(height))
 
     def get_window_size(self, windowHandle='current') -> dict:
@@ -1386,7 +1396,7 @@ class WebDriver(BaseWebDriver):
         """
 
         if windowHandle != 'current':
-            warnings.warn("Only 'current' window is supported for W3C compatibile browsers.")
+            warnings.warn("Only 'current' window is supported for W3C compatible browsers.")
         size = self.get_window_rect()
 
         if size.get('value', None):
@@ -1408,7 +1418,7 @@ class WebDriver(BaseWebDriver):
                 driver.set_window_position(0,0)
         """
         if windowHandle != 'current':
-            warnings.warn("Only 'current' window is supported for W3C compatibile browsers.")
+            warnings.warn("Only 'current' window is supported for W3C compatible browsers.")
         return self.set_window_rect(x=int(x), y=int(y))
 
     def get_window_position(self, windowHandle='current') -> dict:
@@ -1422,7 +1432,7 @@ class WebDriver(BaseWebDriver):
         """
 
         if windowHandle != 'current':
-            warnings.warn("Only 'current' window is supported for W3C compatibile browsers.")
+            warnings.warn("Only 'current' window is supported for W3C compatible browsers.")
         position = self.get_window_rect()
 
         return {k: position[k] for k in ('x', 'y')}

@@ -31,13 +31,13 @@ import org.openqa.selenium.OutputType;
 import org.openqa.selenium.ParallelTestRunner;
 import org.openqa.selenium.ParallelTestRunner.Worker;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.build.InProject;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.Command;
 import org.openqa.selenium.remote.CommandExecutor;
 import org.openqa.selenium.remote.DriverCommand;
-import org.openqa.selenium.remote.LocalFileDetector;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.remote.SessionId;
 import org.openqa.selenium.remote.UnreachableBrowserException;
@@ -74,7 +74,20 @@ import static org.openqa.selenium.testing.drivers.Browser.FIREFOX;
 
 public class FirefoxDriverTest extends JUnit4TestBase {
 
+  private static char[] CHARS =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!\"§$%&/()+*~#',.-_:;\\"
+          .toCharArray();
+  private static Random RANDOM = new Random();
   private WebDriver localDriver;
+
+  private static String randomString() {
+    int n = 20 + RANDOM.nextInt(80);
+    StringBuilder sb = new StringBuilder(n);
+    for (int i = 0; i < n; ++i) {
+      sb.append(CHARS[RANDOM.nextInt(CHARS.length)]);
+    }
+    return sb.toString();
+  }
 
   @After
   public void quitDriver() {
@@ -299,7 +312,6 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     assertThat(size.height).isLessThan(650);
   }
 
-
   @Test
   public void canBlockInvalidSslCertificates() {
     FirefoxProfile profile = new FirefoxProfile();
@@ -335,8 +347,8 @@ public class FirefoxDriverTest extends JUnit4TestBase {
   public void shouldAllowTwoInstancesOfFirefoxAtTheSameTimeInDifferentThreads()
       throws InterruptedException {
     class FirefoxRunner implements Runnable {
-      private volatile WebDriver myDriver;
       private final String url;
+      private volatile WebDriver myDriver;
 
       public FirefoxRunner(String url) {
         this.url = url;
@@ -378,20 +390,6 @@ public class FirefoxDriverTest extends JUnit4TestBase {
       runnable2.quit();
     }
 
-  }
-
-  private static char[] CHARS =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!\"§$%&/()+*~#',.-_:;\\"
-          .toCharArray();
-  private static Random RANDOM = new Random();
-
-  private static String randomString() {
-    int n = 20 + RANDOM.nextInt(80);
-    StringBuilder sb = new StringBuilder(n);
-    for (int i = 0; i < n; ++i) {
-      sb.append(CHARS[RANDOM.nextInt(CHARS.length)]);
-    }
-    return sb.toString();
   }
 
   @Test
@@ -504,12 +502,28 @@ public class FirefoxDriverTest extends JUnit4TestBase {
   public void canAddRemoveExtensions() {
     Path extension = InProject.locate("third_party/firebug/favourite_colour-1.1-an+fx.xpi");
 
-    if (driver.getClass().equals(RemoteWebDriver.class)) {
-      ((RemoteWebDriver) driver).setFileDetector(new LocalFileDetector());
-    }
-
     String id = ((HasExtensions) driver).installExtension(extension);
-    ((HasExtensions) driver).uninstallExtension(id);
+    assertThat(id).isEqualTo("favourite-colour-examples@mozilla.org");
+
+    try {
+      ((HasExtensions) driver).uninstallExtension(id);
+    } catch (WebDriverException ex) {
+      fail(ex.getMessage());
+    }
+  }
+
+  @Test
+  public void canAddRemoveTempExtensions() {
+    Path extension = InProject.locate("third_party/firebug/favourite_colour-1.1-an+fx.xpi");
+
+    String id = ((HasExtensions) driver).installExtension(extension, true);
+    assertThat(id).isEqualTo("favourite-colour-examples@mozilla.org");
+
+    try {
+      ((HasExtensions) driver).uninstallExtension(id);
+    } catch (WebDriverException ex) {
+      fail(ex.getMessage());
+    }
   }
 
   @Test
@@ -519,6 +533,8 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     assertThat(tempFile.length()).isGreaterThan(0);
   }
 
+  @NeedsFreshDriver
+  @NoDriverAfterTest
   @Test
   public void canSetContext() {
     HasContext context = (HasContext) driver;
@@ -528,6 +544,8 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     assertThat(context.getContext()).isEqualTo(FirefoxCommandContext.CHROME);
   }
 
-  private static class CustomFirefoxProfile extends FirefoxProfile {}
+  private static class CustomFirefoxProfile extends FirefoxProfile {
+
+  }
 
 }
