@@ -17,12 +17,14 @@
 
 package org.openqa.selenium.ie;
 
+import org.openqa.selenium.Beta;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.Platform;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.FileDetector;
 import org.openqa.selenium.remote.RemoteWebDriver;
+import org.openqa.selenium.remote.RemoteWebDriverBuilder;
 import org.openqa.selenium.remote.service.DriverCommandExecutor;
 
 import java.io.File;
@@ -142,14 +144,6 @@ public class InternetExplorerDriver extends RemoteWebDriver {
     this(null, null);
   }
 
-  /**
-   * @deprecated Use {@link #InternetExplorerDriver(InternetExplorerOptions)}
-   */
-  @Deprecated
-  public InternetExplorerDriver(Capabilities capabilities) {
-    this(null, capabilities);
-  }
-
   public InternetExplorerDriver(InternetExplorerOptions options) {
     this(null, options);
   }
@@ -159,16 +153,15 @@ public class InternetExplorerDriver extends RemoteWebDriver {
   }
 
   /**
-   * @deprecated Use {@link #InternetExplorerDriver(InternetExplorerDriverService, InternetExplorerOptions)}
+   * Creates a new InternetExplorerDriver instance with the specified options.
+   * The {@code service} will be started along with the driver, and shutdown upon
+   * calling {@link #quit()}.
+   *
+   * @param service The service to use.
+   * @param options The options required from InternetExplorerDriver.
    */
-  @Deprecated
-  public InternetExplorerDriver(InternetExplorerDriverService service, Capabilities capabilities) {
-    this(service, new InternetExplorerOptions(capabilities));
-  }
-
-  public InternetExplorerDriver(
-      InternetExplorerDriverService service,
-      InternetExplorerOptions options) {
+  public InternetExplorerDriver(InternetExplorerDriverService service,
+                                InternetExplorerOptions options) {
     if (options == null) {
       options = new InternetExplorerOptions();
     }
@@ -176,6 +169,11 @@ public class InternetExplorerDriver extends RemoteWebDriver {
       service = setupService(options);
     }
     run(service, options);
+  }
+
+  @Beta
+  public static RemoteWebDriverBuilder builder() {
+    return RemoteWebDriver.builder().oneOf(new InternetExplorerOptions());
   }
 
   private void run(InternetExplorerDriverService service, Capabilities capabilities) {

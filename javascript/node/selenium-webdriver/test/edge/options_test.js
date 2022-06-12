@@ -19,15 +19,13 @@
 
 const assert = require('assert')
 const fs = require('fs')
-const path = require('path')
-
 const edge = require('../../edge')
 const symbols = require('../../lib/symbols')
 const test = require('../../lib/test')
+const { locate } = require('../../lib/test/resources')
 
-const WEBEXTENSION_CRX = path.join(
-  __dirname,
-  '../../lib/test/data/chrome/webextension.crx'
+const WEBEXTENSION_CRX = locate(
+  'common/extensions/webextensions-selenium-example.crx'
 )
 
 describe('edge.Options', function () {
@@ -71,8 +69,7 @@ describe('edge.Options', function () {
       assert.strictEqual(options.options_.extensions, undefined)
 
       options.addExtensions('a', 'b')
-      assert.deepStrictEqual(options.options_.extensions.extensions,
-                             ['a', 'b'])
+      assert.deepStrictEqual(options.options_.extensions.extensions, ['a', 'b'])
     })
 
     it('flattens input arrays', function () {
@@ -134,8 +131,8 @@ test.suite(
   function (env) {
     let driver
 
-    beforeEach(function() {
-      driver = null;
+    beforeEach(function () {
+      driver = null
     })
 
     afterEach(function () {
@@ -183,8 +180,9 @@ test.suite(
       })
 
       it('can install an extension from Buffer', async function () {
-        let options = new edge.Options()
-          .addExtensions(fs.readFileSync(WEBEXTENSION_CRX))
+        let options = new edge.Options().addExtensions(
+          fs.readFileSync(WEBEXTENSION_CRX)
+        )
 
         driver = await env.builder().setEdgeOptions(options).build()
 

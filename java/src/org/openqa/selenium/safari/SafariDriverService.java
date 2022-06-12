@@ -18,6 +18,7 @@
 package org.openqa.selenium.safari;
 
 import com.google.auto.service.AutoService;
+
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.Platform;
 import org.openqa.selenium.WebDriverException;
@@ -45,14 +46,6 @@ public class SafariDriverService extends DriverService {
 
   private static final File SAFARI_DRIVER_EXECUTABLE = new File("/usr/bin/safaridriver");
 
-  /**
-   * @deprecated Directly use {@link SafariTechPreviewDriverService}
-   * Remove after deprecation policy is fulfilled
-   */
-  @Deprecated
-  private static final File TP_SAFARI_DRIVER_EXECUTABLE =
-    new File("/Applications/Safari Technology Preview.app/Contents/MacOS/safaridriver");
-
   public SafariDriverService(
     File executable,
     int port,
@@ -71,11 +64,7 @@ public class SafariDriverService extends DriverService {
   }
 
   public static SafariDriverService createDefaultService() {
-    return createDefaultService(new SafariOptions());
-  }
-
-  static SafariDriverService createDefaultService(SafariOptions options) {
-    return new Builder().usingTechnologyPreview(options.getUseTechnologyPreview()).build();
+    return new Builder().build();
   }
 
   @Override
@@ -91,28 +80,15 @@ public class SafariDriverService extends DriverService {
   public static class Builder extends DriverService.Builder<
       SafariDriverService, SafariDriverService.Builder> {
 
-    private boolean useTechnologyPreview = false;
-
     @Override
     public int score(Capabilities capabilities) {
       int score = 0;
 
       if (SAFARI.is(capabilities)) {
         score++;
-      } else if (SafariOptions.SAFARI_TECH_PREVIEW.equals(capabilities.getBrowserName())) {
-        score++;
       }
 
       return score;
-    }
-
-    /**
-     * @deprecated Directly use {@link SafariTechPreviewDriverService}
-     */
-    @Deprecated
-    public SafariDriverService.Builder usingTechnologyPreview(boolean useTechnologyPreview) {
-      this.useTechnologyPreview = useTechnologyPreview;
-      return this;
     }
 
     @Override
@@ -120,8 +96,6 @@ public class SafariDriverService extends DriverService {
       File exe;
       if (System.getProperty(SAFARI_DRIVER_EXE_PROPERTY) != null) {
         exe = new File(System.getProperty(SAFARI_DRIVER_EXE_PROPERTY));
-      } else if (useTechnologyPreview) {
-        exe = TP_SAFARI_DRIVER_EXECUTABLE;
       } else {
         exe = SAFARI_DRIVER_EXECUTABLE;
       }

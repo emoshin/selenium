@@ -21,8 +21,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.openqa.selenium.support.ui.ExpectedConditions.alertIsPresent;
 import static org.openqa.selenium.support.ui.ExpectedConditions.titleIs;
-import static org.openqa.selenium.testing.drivers.Browser.CHROME;
-import static org.openqa.selenium.testing.drivers.Browser.EDGE;
 import static org.openqa.selenium.testing.drivers.Browser.IE;
 import static org.openqa.selenium.testing.drivers.Browser.FIREFOX;
 import static org.openqa.selenium.testing.drivers.Browser.SAFARI;
@@ -82,19 +80,10 @@ public class FormHandlingTest extends JUnit4TestBase {
   }
 
   @Test
-  @NotYetImplemented(SAFARI)
-  @NotYetImplemented(
-    value = FIREFOX, reason = "Delegates to JS and so the wrong exception is returned")
-  @NotYetImplemented(value = IE,
-      reason = "Throws JavascriptException: Error from JavaScript: Unable to find owning document")
-  @NotYetImplemented(value = EDGE,
-      reason = "Throws JavascriptException: Error from JavaScript: Unable to find owning document")
-  @NotYetImplemented(value = CHROME,
-      reason = "Throws JavascriptException: Error from JavaScript: Unable to find owning document")
   public void testShouldNotBeAbleToSubmitAFormThatDoesNotExist() {
     driver.get(pages.formPage);
     WebElement element = driver.findElement(By.name("SearchableText"));
-    assertThatExceptionOfType(NoSuchElementException.class).isThrownBy(element::submit);
+    assertThatExceptionOfType(UnsupportedOperationException.class).isThrownBy(element::submit);
   }
 
   @Test
@@ -293,14 +282,10 @@ public class FormHandlingTest extends JUnit4TestBase {
 
   @Test
   public void canSubmitFormWithSubmitButtonIdEqualToSubmit() {
-    String blank = appServer.create(new Page().withTitle("Submitted Successfully!"));
-    driver.get(appServer.create(new Page().withBody(
-        String.format("<form action='%s'>", blank),
-        "  <input type='submit' id='submit' value='Submit'>",
-        "</form>")));
-
-    driver.findElement(By.id("submit")).submit();
-    wait.until(titleIs("Submitted Successfully!"));
+    driver.get(pages.formPage);
+    driver.findElement(By.id("submit")).click();
+    wait.until(titleIs("We Arrive Here"));
+    assertThat(driver.getTitle()).isEqualTo("We Arrive Here");
   }
 
   @Test

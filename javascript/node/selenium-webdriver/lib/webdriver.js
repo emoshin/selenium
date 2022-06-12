@@ -37,6 +37,7 @@ const { Capabilities } = require('./capabilities')
 const path = require('path')
 const { NoSuchElementError } = require('./error')
 const cdpTargets = ['page', 'browser']
+const Credential = require('./virtual_authenticator').Credential
 
 // Capability names that are defined in the W3C spec.
 const W3C_CAPABILITY_NAMES = new Set([
@@ -679,6 +680,9 @@ class WebDriver {
 
     /** @private @const {(function(this: void): ?|undefined)} */
     this.onQuit_ = onQuit
+
+    /** @private {./virtual_authenticator}*/
+    this.authenticatorId_ = null
   }
 
   /**
@@ -730,6 +734,7 @@ class WebDriver {
   /** @override */
   async execute(command) {
     command.setParameter('sessionId', this.session_)
+
     let parameters = await toWireValue(command.getParameters())
     command.setParameters(parameters)
     let value = await this.executor_.execute(command)
@@ -1197,14 +1202,25 @@ class WebDriver {
    * @return {!Promise<resolved>} A new CDP instance.
    */
   async createCDPConnection(target) {
+    let debuggerUrl = null
+
     const caps = await this.getCapabilities()
-    const seCdp = caps['map_'].get('se:cdp')
-    const vendorInfo =
-      caps['map_'].get(this.VENDOR_COMMAND_PREFIX + ':chromeOptions') ||
-      caps['map_'].get(this.VENDOR_CAPABILITY_PREFIX + ':edgeOptions') ||
-      caps['map_'].get('moz:debuggerAddress') ||
-      new Map()
-    const debuggerUrl = seCdp || vendorInfo['debuggerAddress'] || vendorInfo
+
+    if (process.env.SELENIUM_REMOTE_URL) {
+      const host = new URL(process.env.SELENIUM_REMOTE_URL).host
+      const sessionId = await this.getSession().then((session) =>
+        session.getId()
+      )
+      debuggerUrl = `ws://${host}/session/${sessionId}/se/cdp`
+    } else {
+      const seCdp = caps['map_'].get('se:cdp')
+      const vendorInfo =
+        caps['map_'].get(this.VENDOR_COMMAND_PREFIX + ':chromeOptions') ||
+        caps['map_'].get(this.VENDOR_CAPABILITY_PREFIX + ':edgeOptions') ||
+        caps['map_'].get('moz:debuggerAddress') ||
+        new Map()
+      debuggerUrl = seCdp || vendorInfo['debuggerAddress'] || vendorInfo
+    }
     this._wsUrl = await this.getWsUrl(debuggerUrl, target, caps)
     return new Promise((resolve, reject) => {
       try {
@@ -1503,6 +1519,110 @@ class WebDriver {
         callback(event)
       }
     })
+  }
+
+  /**
+   *
+   * @returns The value of authenticator ID added
+   */
+  virtualAuthenticatorId() {
+    return this.authenticatorId_
+  }
+
+  /**
+   * Adds a virtual authenticator with the given options.
+   * @param options VirtualAuthenticatorOptions object to set authenticator optons.
+   */
+  async addVirtualAuthenticator(options) {
+    this.authenticatorId_ = await this.execute(
+      new command.Command(command.Name.ADD_VIRTUAL_AUTHENTICATOR).setParameters(
+        options.toDict()
+      )
+    )
+  }
+
+  /**
+   * Removes a previously added virtual authenticator. The authenticator is no
+   * longer valid after removal, so no methods may be called.
+   */
+  async removeVirtualAuthenticator() {
+    await this.execute(
+      new command.Command(
+        command.Name.REMOVE_VIRTUAL_AUTHENTICATOR
+      ).setParameter('authenticatorId', this.authenticatorId_)
+    )
+    this.authenticatorId_ = null
+  }
+
+  /**
+   * Injects a credential into the authenticator.
+   * @param credential Credential to be added
+   */
+  async addCredential(credential) {
+    credential = credential.toDict()
+    credential['authenticatorId'] = this.authenticatorId_
+    await this.execute(
+      new command.Command(command.Name.ADD_CREDENTIAL).setParameters(credential)
+    )
+  }
+
+  /**
+   *
+   * @returns The list of credentials owned by the authenticator.
+   */
+  async getCredentials() {
+    let credential_data = await this.execute(
+      new command.Command(command.Name.GET_CREDENTIALS).setParameter(
+        'authenticatorId',
+        this.virtualAuthenticatorId()
+      )
+    )
+    var credential_list = []
+    for (var i = 0; i < credential_data.length; i++) {
+      credential_list.push(new Credential().fromDict(credential_data[i]))
+    }
+    return credential_list
+  }
+
+  /**
+   * Removes a credential from the authenticator.
+   * @param credential_id The ID of the credential to be removed.
+   */
+  async removeCredential(credential_id) {
+    // If credential_id is not a base64url, then convert it to base64url.
+    if (Array.isArray(credential_id)) {
+      credential_id = Buffer.from(credential_id).toString('base64url')
+    }
+
+    await this.execute(
+      new command.Command(command.Name.REMOVE_CREDENTIAL)
+        .setParameter('credentialId', credential_id)
+        .setParameter('authenticatorId', this.authenticatorId_)
+    )
+  }
+
+  /**
+   * Removes all the credentials from the authenticator.
+   */
+  async removeAllCredentials() {
+    await this.execute(
+      new command.Command(command.Name.REMOVE_ALL_CREDENTIALS).setParameter(
+        'authenticatorId',
+        this.authenticatorId_
+      )
+    )
+  }
+
+  /**
+   * Sets whether the authenticator will simulate success or fail on user verification.
+   * @param verified true if the authenticator will pass user verification, false otherwise.
+   */
+  async setUserVerified(verified) {
+    await this.execute(
+      new command.Command(command.Name.SET_USER_VERIFIED)
+        .setParameter('authenticatorId', this.authenticatorId_)
+        .setParameter('isUserVerified', verified)
+    )
   }
 }
 
@@ -1945,14 +2065,10 @@ class Window {
    * @return {!Promise<{x: number, y: number, width: number, height: number}>}
    *     A promise that will resolve to the window rect of the current window.
    */
-  async getRect() {
-    try {
-      return await this.driver_.execute(
-        new command.Command(command.Name.GET_WINDOW_RECT)
-      )
-    } catch (ex) {
-      throw ex
-    }
+  getRect() {
+    return this.driver_.execute(
+      new command.Command(command.Name.GET_WINDOW_RECT)
+    )
   }
 
   /**
@@ -1969,19 +2085,15 @@ class Window {
    *     A promise that will resolve to the current window's updated window
    *     rect.
    */
-  async setRect({ x, y, width, height }) {
-    try {
-      return await this.driver_.execute(
-        new command.Command(command.Name.SET_WINDOW_RECT).setParameters({
-          x,
-          y,
-          width,
-          height,
-        })
-      )
-    } catch (ex) {
-      throw ex
-    }
+  setRect({ x, y, width, height }) {
+    return this.driver_.execute(
+      new command.Command(command.Name.SET_WINDOW_RECT).setParameters({
+        x,
+        y,
+        width,
+        height,
+      })
+    )
   }
 
   /**
@@ -2159,13 +2271,23 @@ class TargetLocator {
    * If the specified frame can not be found, the returned promise will be
    * rejected with a {@linkplain error.NoSuchFrameError}.
    *
-   * @param {(number|WebElement|null)} id The frame locator.
+   * @param {(number|string|WebElement|null)} id The frame locator.
    * @return {!Promise<void>} A promise that will be resolved
    *     when the driver has changed focus to the specified frame.
    */
   frame(id) {
+    let frameReference = id
+    if (typeof id === 'string') {
+      frameReference = this.driver_
+        .findElement({ id })
+        .catch((_) => this.driver_.findElement({ name: id }))
+    }
+
     return this.driver_.execute(
-      new command.Command(command.Name.SWITCH_TO_FRAME).setParameter('id', id)
+      new command.Command(command.Name.SWITCH_TO_FRAME).setParameter(
+        'id',
+        frameReference
+      )
     )
   }
 
@@ -2522,12 +2644,12 @@ class WebElement {
       if (type === 'number') {
         key = String(key)
       } else if (type !== 'string') {
-        throw TypeError('each key must be a number of string; got ' + type)
+        throw TypeError('each key must be a number or string; got ' + type)
       }
 
       // The W3C protocol requires keys to be specified as an array where
       // each element is a single key.
-      keys.push(...key.split(''))
+      keys.push(...key)
     })
 
     if (!this.driver_.fileDetector_) {
@@ -2538,10 +2660,18 @@ class WebElement {
       )
     }
 
-    keys = await this.driver_.fileDetector_.handleFile(
-      this.driver_,
-      keys.join('')
-    )
+    try {
+      keys = await this.driver_.fileDetector_.handleFile(
+        this.driver_,
+        keys.join('')
+      )
+    } catch (ex) {
+      console.log(
+        'Error trying parse string as a file with file detector; sending keys instead' +
+          ex
+      )
+    }
+
     return this.execute_(
       new command.Command(command.Name.SEND_KEYS_TO_ELEMENT)
         .setParameter('text', keys)
@@ -2710,14 +2840,8 @@ class WebElement {
    * @return {!Promise<{width: number, height: number, x: number, y: number}>}
    *     A promise that will resolve with the element's rect.
    */
-  async getRect() {
-    try {
-      return await this.execute_(
-        new command.Command(command.Name.GET_ELEMENT_RECT)
-      )
-    } catch (err) {
-        throw err;
-    }
+  getRect() {
+    return this.execute_(new command.Command(command.Name.GET_ELEMENT_RECT))
   }
 
   /**
@@ -2750,13 +2874,18 @@ class WebElement {
    *     when the form has been submitted.
    */
   submit() {
-    const form = this.findElement({ xpath: './ancestor-or-self::form' })
-    this.driver_.executeScript(
-      "var e = arguments[0].ownerDocument.createEvent('Event');" +
-        "e.initEvent('submit', true, true);" +
-        'if (arguments[0].dispatchEvent(e)) { arguments[0].submit() }',
-      form
-    )
+    const script =
+      'var form = arguments[0];\n' +
+      'while (form.nodeName != "FORM" && form.parentNode) {\n' +
+      '  form = form.parentNode;\n' +
+      '}\n' +
+      "if (!form) { throw Error('Unable to find containing form element'); }\n" +
+      "if (!form.ownerDocument) { throw Error('Unable to find owning document'); }\n" +
+      "var e = form.ownerDocument.createEvent('Event');\n" +
+      "e.initEvent('submit', true, true);\n" +
+      'if (form.dispatchEvent(e)) { HTMLFormElement.prototype.submit.call(form) }\n'
+
+    this.driver_.executeScript(script, this)
   }
 
   /**

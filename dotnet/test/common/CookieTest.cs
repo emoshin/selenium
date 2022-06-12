@@ -20,6 +20,12 @@ namespace OpenQA.Selenium
         }
 
         [Test]
+        public void ShouldThrowAnExceptionWhenNameAndValueAreEmpty()
+        {
+            Assert.That(() => new ReturnedCookie("", "", null, null, DateTime.Now, false, false), Throws.InstanceOf<ArgumentException>());
+        }
+
+        [Test]
         public void ShouldThrowAnExceptionWhenTheNameIsNull()
         {
             Assert.That(() => new ReturnedCookie(null, "value", null, null, DateTime.Now, false, false), Throws.InstanceOf<ArgumentException>());
@@ -29,12 +35,6 @@ namespace OpenQA.Selenium
         public void ShouldThrowAnExceptionWhenSameSiteIsWrong()
         {
             Assert.That(() => new ReturnedCookie("name", "value", "" , "/", DateTime.Now, true, true, "Wrong"), Throws.InstanceOf<ArgumentException>());
-        }
-
-        [Test]
-        public void ShouldThrowAnExceptionWhenSameSiteIsNoneButNotSecure()
-        {
-            Assert.That(() => new ReturnedCookie("name", "value", "", "/", DateTime.Now, false, true, "None"), Throws.InstanceOf<ArgumentException>());
         }
 
         [Test]

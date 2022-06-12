@@ -20,48 +20,94 @@
 module Selenium
   module WebDriver
     module WheelActions
+      attr_writer :default_scroll_duration
 
-      # This scrolls an element to the bottom of the viewport
+      #
+      # By default this is set to 250ms in the ActionBuilder constructor
+      # It can be overridden with default_scroll_duration=
+      #
+
+      def default_scroll_duration
+        @default_scroll_duration ||= @duration / 1000.0 # convert ms to seconds
+      end
+
+      #
+      # If the element is outside the viewport, scrolls the bottom of the element to the bottom of the viewport.
+      #
+      # @example Scroll to element
+      #    el = driver.find_element(id: "some_id")
+      #    driver.action.scroll_to(element).perform
+      #
+      # @param [Object] Which element to scroll into the viewport.
+      # @return [Selenium::WebDriver::WheelActions] A self reference.
       def scroll_to(element, device: nil)
-        scroll_from(element, device: device)
+        scroll(origin: element, device: device)
       end
 
-      # This scrolls from the provided element
-      # The origin of the scroll is the center of the element plus the
-      # offset amounts in origin_offset_x and origin_offset_y
-      # The amount of scrolling is the value of right_by and down_by
-      def scroll_from(element, right_by = 0, down_by = 0, origin_offset_x: 0, origin_offset_y: 0, device: nil)
-        wheel = wheel_input(device)
-        wheel.create_scroll(x: Integer(origin_offset_x),
-                            y: Integer(origin_offset_y),
-                            delta_x: Integer(right_by),
-                            delta_y: Integer(down_by),
-                            origin: element,
-                            duration: default_move_duration)
-        tick(wheel)
-        self
+      #
+      # Scrolls by provided amounts with the origin in the top left corner of the viewport.
+      #
+      # @example Scroll viewport by a specified amount
+      #    el = driver.find_element(id: "some_id")
+      #    driver.action.scroll_by(100, 200).perform
+      #
+      # @param [Integer] delta_x Distance along X axis to scroll using the wheel. A negative value scrolls left.
+      # @param [Integer] delta_y Distance along Y axis to scroll using the wheel. A negative value scrolls up.
+      # @return [Selenium::WebDriver::WheelActions] A self reference.
+      def scroll_by(delta_x, delta_y, device: nil)
+        scroll(delta_x: delta_x, delta_y: delta_y, device: device)
       end
 
-      # The origin of the scroll will the upper left corner of the viewport plus the
-      # offset amounts in origin_x and origin_y
-      # The amount of scrolling is the value of right_by and down_by
-      def scroll_by(right_by = 0, down_by = 0, origin_x: 0, origin_y: 0, device: nil)
-        wheel = wheel_input(device)
-        wheel.create_scroll(x: Integer(origin_x),
-                            y: Integer(origin_y),
-                            delta_x: Integer(right_by),
-                            delta_y: Integer(down_by),
-                            origin: Interactions::Scroll::VIEWPORT,
-                            duration: default_move_duration)
-        tick(wheel)
-        self
+      #
+      # Scrolls by provided amount based on a provided origin.
+      #
+      # The scroll origin is either the center of an element or the upper left of the viewport plus any offsets.
+      # If the origin is an element, and the element is not in the viewport, the bottom of the element will first
+      #   be scrolled to the bottom of the viewport.
+      #
+      # @example Scroll from element by a specified amount
+      #    el = driver.find_element(id: "some_id")
+      #    origin = WheelActions::ScrollOrigin.element(el)
+      #    driver.action.scroll_from(origin, 0, 200).perform
+      #
+      # @example Scroll from element by a specified amount with an offset
+      #    el = driver.find_element(id: "some_id")
+      #    origin = WheelActions::ScrollOrigin.element(el, 10, 10)
+      #    driver.action.scroll_from(origin, 100, 200).perform
+      #
+      # @example Scroll viewport by a specified amount with an offset
+      #    origin = WheelActions::ScrollOrigin.viewport(10, 10)
+      #    driver.action.scroll_from(origin, 0, 200).perform
+      #
+      # @param [ScrollOrigin] scroll_origin Where scroll originates (viewport or element center) plus provided offsets.
+      # @param [Integer] delta_x Distance along X axis to scroll using the wheel. A negative value scrolls left.
+      # @param [Integer] delta_y Distance along Y axis to scroll using the wheel. A negative value scrolls up.
+      # @return [Selenium::WebDriver::WheelActions] A self reference.
+      # @raise [Error::MoveTargetOutOfBoundsError] If the origin with offset is outside the viewport.
+      def scroll_from(scroll_origin, delta_x, delta_y, device: nil)
+        raise TypeError, "#{scroll_origin.inspect} isn't a valid ScrollOrigin" unless scroll_origin.is_a?(ScrollOrigin)
+
+        scroll(x: scroll_origin.x_offset,
+               y: scroll_origin.y_offset,
+               delta_x: delta_x,
+               delta_y: delta_y,
+               origin: scroll_origin.origin,
+               device: device)
       end
 
       private
 
+      def scroll(**opts)
+        opts[:duration] = default_scroll_duration
+        wheel = wheel_input(opts.delete(:device))
+        wheel.create_scroll(**opts)
+        tick(wheel)
+        self
+      end
+
       def wheel_input(name = nil)
         device(name: name, type: Interactions::WHEEL) || add_wheel_input('wheel')
       end
-    end # KeyActions
+    end # WheelActions
   end # WebDriver
 end # Selenium

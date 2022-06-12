@@ -23,7 +23,7 @@ module Selenium
   module WebDriver
     describe WheelActions do
       let(:wheel) { Interactions.wheel('wheel') }
-      let(:bridge) { instance_double('Bridge').as_null_object }
+      let(:bridge) { instance_double(Remote::Bridge).as_null_object }
       let(:builder) { ActionBuilder.new(bridge, devices: [wheel]) }
       let(:duration) { builder.default_move_duration }
       let(:element) { Element.new(bridge, 'element') }
@@ -47,51 +47,7 @@ module Selenium
         end
       end
 
-      describe '#scroll_to' do
-        it 'calls scroll_from' do
-          allow(builder).to receive(:scroll_from).and_call_original
-
-          builder.scroll_to(element)
-          expect(builder).to have_received(:scroll_from).with(element, device: nil)
-        end
-      end
-
-      describe '#scroll_from' do
-        it 'gets wheel input' do
-          allow(builder).to receive(:wheel_input).and_call_original
-
-          builder.scroll_from element, 5, 5, device: wheel.name
-
-          expect(builder).to have_received(:wheel_input).with(wheel.name)
-        end
-
-        it 'calls create_scroll' do
-          allow(wheel).to receive(:create_scroll).and_call_original
-
-          builder.scroll_from element, 5, 5, origin_offset_x: 6, origin_offset_y: 6, device: wheel.name
-
-          expect(wheel).to have_received(:create_scroll).with(duration: duration,
-                                                              origin: element,
-                                                              x: 6,
-                                                              y: 6,
-                                                              delta_x: 5,
-                                                              delta_y: 5)
-        end
-
-        it 'passes the wheel to the #tick method' do
-          allow(builder).to receive(:tick)
-
-          builder.scroll_from element, 5, 5
-
-          expect(builder).to have_received(:tick).with(wheel)
-        end
-
-        it 'returns itself' do
-          expect(builder.scroll_from(element, 5, 5)).to eq(builder)
-        end
-      end
-
-      describe '#scroll_by' do
+      describe '#scroll' do
         it 'gets wheel input' do
           allow(builder).to receive(:wheel_input).and_call_original
 
@@ -100,15 +56,30 @@ module Selenium
           expect(builder).to have_received(:wheel_input).with(wheel.name)
         end
 
-        it 'calls create_scroll' do
+        it 'calls create_scroll with origin element offset' do
           allow(wheel).to receive(:create_scroll).and_call_original
 
-          builder.scroll_by 5, 5, origin_x: 6, origin_y: 6, device: wheel.name
+          scroll_origin = WheelActions::ScrollOrigin.element(element, 10, 10)
+          builder.scroll_from scroll_origin, 5, 5, device: wheel.name
+
+          expect(wheel).to have_received(:create_scroll).with(duration: duration,
+                                                              origin: element,
+                                                              x: 10,
+                                                              y: 10,
+                                                              delta_x: 5,
+                                                              delta_y: 5)
+        end
+
+        it 'calls create_scroll with origin viewport offset' do
+          allow(wheel).to receive(:create_scroll).and_call_original
+
+          scroll_origin = WheelActions::ScrollOrigin.viewport(-10, -10)
+          builder.scroll_from scroll_origin, 5, 5, device: wheel.name
 
           expect(wheel).to have_received(:create_scroll).with(duration: duration,
                                                               origin: :viewport,
-                                                              x: 6,
-                                                              y: 6,
+                                                              x: -10,
+                                                              y: -10,
                                                               delta_x: 5,
                                                               delta_y: 5)
         end
@@ -116,13 +87,13 @@ module Selenium
         it 'passes the wheel to the #tick method' do
           allow(builder).to receive(:tick)
 
-          builder.scroll_by 5, 5
+          builder.scroll_to(element)
 
           expect(builder).to have_received(:tick).with(wheel)
         end
 
         it 'returns itself' do
-          expect(builder.scroll_by(5, 5)).to eq(builder)
+          expect(builder.scroll_to(element)).to eq(builder)
         end
       end
     end

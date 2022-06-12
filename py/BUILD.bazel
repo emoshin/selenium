@@ -1,17 +1,27 @@
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
-load("@dev_requirements//:requirements.bzl", "requirement")
+load("@py_dev_requirements//:requirements.bzl", "requirement")
 load("//common:defs.bzl", "copy_file")
 load("//py:defs.bzl", "py_test_suite")
 load("//py/private:browsers.bzl", "BROWSERS")
+load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 
-SE_VERSION = "4.1.0"
+compile_pip_requirements(
+    # base name for generated targets, typically "requirements"
+    name = "requirements",
+    requirements_in = ":requirements.txt",
+    requirements_txt = ":requirements_lock.txt",
+)
+
+SE_VERSION = "4.2.0"
 
 BROWSER_VERSIONS = [
     "v85",
-    "v94",
-    "v95",
-    "v96",
+    "v100",
+    "v101",
+    "v102",
 ]
 
 TEST_DEPS = [
@@ -65,6 +75,12 @@ copy_file(
     out = "selenium/webdriver/firefox/webdriver_prefs.json",
 )
 
+copy_file(
+    name = "favourite_color",
+    src = "//common/extensions:webextensions-selenium-example.xpi",
+    out = "test/selenium/webdriver/firefox/webextensions-selenium-example.xpi",
+)
+
 py_library(
     name = "selenium",
     srcs = glob(
@@ -72,11 +88,13 @@ py_library(
         exclude = ["generate.py"],
     ),
     data = [
+        "selenium/py.typed",
         ":find-elements",
         ":firefox-driver-prefs",
         ":get-attribute",
         ":is-displayed",
         ":mutation-listener",
+        ":favourite_color",
     ] + [":create-cdp-srcs-" + n for n in BROWSER_VERSIONS],
     imports = ["."],
     visibility = ["//visibility:public"],
@@ -104,6 +122,26 @@ py_package(
         "py.selenium.webdriver.safari",
     ],
     deps = [":selenium"],
+)
+
+pkg_files(
+    name = "selenium-sdist-pkg",
+    srcs = [
+        "CHANGES",
+        "MANIFEST.in",
+        "README.rst",
+        "setup.py",
+        ":selenium-pkg",
+    ],
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_tar(
+    name = "selenium-sdist",
+    srcs = [":selenium-sdist-pkg"],
+    extension = "tar.gz",
+    mode = "0644",
+    package_file_name = "selenium-%s.tar.gz" % SE_VERSION,
 )
 
 py_wheel(
@@ -134,7 +172,7 @@ py_wheel(
         "trio-websocket~=0.9",
     ],
     strip_path_prefixes = [
-        "py",
+        "py/",
     ],
     version = SE_VERSION,
     visibility = ["//visibility:public"],
@@ -336,6 +374,9 @@ py_test_suite(
         "--instafail",
         "--driver=firefox",
     ],
+    data = [
+        "//common/extensions",
+    ],
     tags = [
         "no-sandbox",
     ],
@@ -358,6 +399,7 @@ py_test_suite(
         "--driver=remote",
     ],
     data = [
+        "//common/extensions",
         "//java/src/org/openqa/selenium/grid:selenium_server_deploy.jar",
     ],
     tags = [

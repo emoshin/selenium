@@ -60,11 +60,28 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [IgnoreBrowser(Browser.Opera)]
-        public void ShouldNotBeAbleToSubmitAFormThatDoesNotExist()
+        public void ShouldSubmitAFormWithIdSubmit()
         {
             driver.Url = formsPage;
-            Assert.That(() => driver.FindElement(By.Name("SearchableText")).Submit(), Throws.InstanceOf<NoSuchElementException>());
+            driver.FindElement(By.Id("submit")).Submit();
+            WaitFor(TitleToBe("We Arrive Here"), "Browser title is not 'We Arrive Here'");
+            Assert.AreEqual(driver.Title, "We Arrive Here");
+        }
+
+        [Test]
+        public void ShouldSubmitAFormWithNameSubmit()
+        {
+            driver.Url = formsPage;
+            driver.FindElement(By.Name("submit")).Submit();
+            WaitFor(TitleToBe("We Arrive Here"), "Browser title is not 'We Arrive Here'");
+            Assert.AreEqual(driver.Title, "We Arrive Here");
+        }
+
+        [Test]
+        public void ShouldNotBeAbleToSubmitAnInputOutsideAForm()
+        {
+            driver.Url = formsPage;
+            Assert.That(() => driver.FindElement(By.Name("SearchableText")).Submit(), Throws.InstanceOf<WebDriverException>());
         }
 
         [Test]
@@ -88,6 +105,7 @@ namespace OpenQA.Selenium
         }
 
         [Test]
+        [IgnoreBrowser(Browser.Firefox)]
         public void ShouldSubmitAFormUsingTheNewlineLiteral()
         {
             driver.Url = formsPage;
@@ -254,7 +272,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [IgnoreBrowser(Browser.Opera, "Untested")]
         public void HandleFormWithJavascriptAction()
         {
             string url = EnvironmentManager.Instance.UrlBuilder.WhereIs("form_handling_js_submit.html");

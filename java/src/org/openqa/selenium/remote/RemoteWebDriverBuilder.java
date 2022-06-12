@@ -19,6 +19,7 @@ package org.openqa.selenium.remote;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import org.openqa.selenium.Beta;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.Credentials;
@@ -89,6 +90,7 @@ import static org.openqa.selenium.remote.http.HttpMethod.DELETE;
  */
 @Beta
 public class RemoteWebDriverBuilder {
+
   private static final Logger LOG = Logger.getLogger(RemoteWebDriverBuilder.class.getName());
   private static final Set<String> ILLEGAL_METADATA_KEYS = ImmutableSet.of(
     "alwaysMatch",
@@ -126,6 +128,7 @@ public class RemoteWebDriverBuilder {
   private URI remoteHost = null;
   private DriverService driverService;
   private Credentials credentials = null;
+  private boolean useCustomConfig;
   private Augmenter augmenter = new Augmenter();
 
   RemoteWebDriverBuilder() {
@@ -201,7 +204,8 @@ public class RemoteWebDriverBuilder {
     if (previous != null) {
       LOG.log(
         getDebugLogLevel(),
-        String.format("Overwriting capability %s. Previous value %s, new value %s", capabilityName, previous, value));
+        () -> String.format("Overwriting capability %s. Previous value %s, new value %s",
+                            capabilityName, previous, value));
     }
 
     return this;
@@ -273,6 +277,7 @@ public class RemoteWebDriverBuilder {
     }
 
     this.clientConfig = config;
+    this.useCustomConfig = true;
 
     return this;
   }
@@ -336,7 +341,14 @@ public class RemoteWebDriverBuilder {
       throw new SessionNotCreatedException("Unable to find matching driver for capabilities");
     }
 
-    return first.get().get();
+    WebDriver localDriver = first.get().get();
+
+    if (localDriver != null && this.useCustomConfig) {
+      localDriver.quit();
+      throw new IllegalArgumentException("ClientConfig instances do not work for Local Drivers");
+    }
+
+    return localDriver;
   }
 
   /**
@@ -382,7 +394,7 @@ public class RemoteWebDriverBuilder {
         .andThen(new ErrorFilter())
         .andThen(new DumpHttpExchangeFilter()));
 
-    Either<SessionNotCreatedException, ProtocolHandshake.Result> result = null;
+    Either<SessionNotCreatedException, ProtocolHandshake.Result> result;
     try {
       result = new ProtocolHandshake().createSession(handler, getPayload());
     } catch (IOException e) {

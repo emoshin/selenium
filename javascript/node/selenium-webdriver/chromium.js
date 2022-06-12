@@ -92,11 +92,13 @@ const Command = {
   LAUNCH_APP: 'launchApp',
   GET_NETWORK_CONDITIONS: 'getNetworkConditions',
   SET_NETWORK_CONDITIONS: 'setNetworkConditions',
+  DELETE_NETWORK_CONDITIONS: 'deleteNetworkConditions',
   SEND_DEVTOOLS_COMMAND: 'sendDevToolsCommand',
   SEND_AND_GET_DEVTOOLS_COMMAND: 'sendAndGetDevToolsCommand',
   SET_PERMISSION: 'setPermission',
   GET_CAST_SINKS: 'getCastSinks',
   SET_CAST_SINK_TO_USE: 'setCastSinkToUse',
+  START_CAST_DESKTOP_MIRRORING: 'startDesktopMirroring',
   START_CAST_TAB_MIRRORING: 'setCastTabMirroring',
   GET_CAST_ISSUE_MESSAGE: 'getCastIssueMessage',
   STOP_CASTING: 'stopCasting',
@@ -137,6 +139,11 @@ function configureExecutor(executor, vendorPrefix) {
     '/session/:sessionId/chromium/network_conditions'
   )
   executor.defineCommand(
+    Command.DELETE_NETWORK_CONDITIONS,
+    'DELETE',
+    '/session/:sessionId/chromium/network_conditions'
+  )
+  executor.defineCommand(
     Command.SEND_DEVTOOLS_COMMAND,
     'POST',
     '/session/:sessionId/chromium/send_command'
@@ -160,6 +167,11 @@ function configureExecutor(executor, vendorPrefix) {
     Command.SET_CAST_SINK_TO_USE,
     'POST',
     `/session/:sessionId/${vendorPrefix}/cast/set_sink_to_use`
+  )
+  executor.defineCommand(
+    Command.START_CAST_DESKTOP_MIRRORING,
+    'POST',
+    `/session/:sessionId/${vendorPrefix}/cast/start_desktop_mirroring`
   )
   executor.defineCommand(
     Command.START_CAST_TAB_MIRRORING,
@@ -649,14 +661,12 @@ class Driver extends webdriver.WebDriver {
    */
   static createSession(caps, opt_serviceExecutor) {
     let executor
-    let onQuit
     if (opt_serviceExecutor instanceof http.Executor) {
       executor = opt_serviceExecutor
       configureExecutor(executor, this.VENDOR_COMMAND_PREFIX)
     } else {
       let service = opt_serviceExecutor || this.getDefaultService()
       executor = createExecutor(service.start(), this.VENDOR_COMMAND_PREFIX)
-      onQuit = () => service.kill()
     }
 
     // W3C spec requires noProxy value to be an array of strings, but Chromium
@@ -669,7 +679,7 @@ class Driver extends webdriver.WebDriver {
       }
     }
 
-    return /** @type {!Driver} */ (super.createSession(executor, caps, onQuit))
+    return /** @type {!Driver} */ (super.createSession(executor, caps))
   }
 
   /**
@@ -698,6 +708,15 @@ class Driver extends webdriver.WebDriver {
    */
   getNetworkConditions() {
     return this.execute(new command.Command(Command.GET_NETWORK_CONDITIONS))
+  }
+
+  /**
+   * Schedules a command to delete Chromium network emulation settings.
+   * @return {!Promise} A promise that will be resolved when network
+   *     emulation settings have been deleted.
+   */
+  deleteNetworkConditions() {
+    return this.execute(new command.Command(Command.DELETE_NETWORK_CONDITIONS))
   }
 
   /**
@@ -831,6 +850,23 @@ class Driver extends webdriver.WebDriver {
         deviceName
       ),
       'Driver.setCastSinkToUse(' + deviceName + ')'
+    )
+  }
+
+  /**
+   * Initiates desktop mirroring for the current browser tab on the specified device.
+   *
+   * @param {String} deviceName name of the target device.
+   * @return {!promise.Thenable<void>} A promise that will be resolved
+   *     when the mirror command has been issued to the device.
+   */
+  startDesktopMirroring(deviceName) {
+    return this.schedule(
+      new command.Command(Command.START_CAST_DESKTOP_MIRRORING).setParameter(
+        'sinkName',
+        deviceName
+      ),
+      'Driver.startDesktopMirroring(' + deviceName + ')'
     )
   }
 

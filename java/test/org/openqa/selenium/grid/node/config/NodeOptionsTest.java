@@ -17,14 +17,6 @@
 
 package org.openqa.selenium.grid.node.config;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singletonMap;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
-
 import com.google.common.collect.ImmutableMap;
 
 import org.assertj.core.api.Condition;
@@ -58,9 +50,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonMap;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
+
 @SuppressWarnings("DuplicatedCode")
 public class NodeOptionsTest {
 
+  @SuppressWarnings("ReturnValueIgnored")
   @Test
   public void canConfigureNodeWithDriverDetection() {
     assumeFalse("We don't have driver servers in PATH when we run unit tests",
@@ -106,6 +107,12 @@ public class NodeOptionsTest {
     assertThat(reported).isNot(supporting("safari"));
   }
 
+  @Test
+  public void cdpCanBeDisabled() {
+    Config config = new MapConfig(singletonMap("node", singletonMap("enable-cdp", "false")));
+    NodeOptions nodeOptions = new NodeOptions(config);
+    assertThat(nodeOptions.isCdpEnabled()).isFalse();
+  }
 
   @Test
   public void shouldDetectCorrectDriversOnMac() {
@@ -155,7 +162,9 @@ public class NodeOptionsTest {
     });
 
     assertThat(reported)
-      .filteredOn(capabilities -> capabilities.getCapability("se:vncEnabled") != null)
+      .filteredOn(capabilities ->
+                    capabilities.getCapability("se:vncEnabled") != null &&
+                    capabilities.getCapability("se:noVncPort") != null)
       .hasSize(reported.size());
   }
 
@@ -173,7 +182,9 @@ public class NodeOptionsTest {
     });
 
     assertThat(reported)
-      .filteredOn(capabilities -> capabilities.getCapability("se:vncEnabled") == null)
+      .filteredOn(capabilities ->
+                    capabilities.getCapability("se:vncEnabled") == null &&
+                    capabilities.getCapability("se:noVncPort") == null)
       .hasSize(reported.size());
   }
 

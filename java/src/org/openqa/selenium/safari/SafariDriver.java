@@ -18,12 +18,14 @@
 package org.openqa.selenium.safari;
 
 import com.google.common.collect.ImmutableMap;
-import org.openqa.selenium.Capabilities;
+
+import org.openqa.selenium.Beta;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.internal.Require;
 import org.openqa.selenium.remote.CommandInfo;
 import org.openqa.selenium.remote.FileDetector;
 import org.openqa.selenium.remote.RemoteWebDriver;
+import org.openqa.selenium.remote.RemoteWebDriverBuilder;
 import org.openqa.selenium.remote.service.DriverCommandExecutor;
 import org.openqa.selenium.remote.service.DriverService;
 
@@ -48,25 +50,15 @@ public class SafariDriver extends RemoteWebDriver implements HasPermissions, Has
   }
 
   /**
-   * Converts the specified {@link Capabilities} to a {@link SafariOptions}
-   * instance and initializes a new SafariDriver using these options.
-   * @see SafariOptions#fromCapabilities(Capabilities)
-   *
-   * @param desiredCapabilities capabilities requested of the driver
-   * @deprecated Use {@link SafariDriver(SafariOptions)} instead.
-   */
-  @Deprecated
-  public SafariDriver(Capabilities desiredCapabilities) {
-    this(SafariOptions.fromCapabilities(desiredCapabilities));
-  }
-
-  /**
    * Initializes a new SafariDriver using the specified {@link SafariOptions}.
    *
    * @param safariOptions safari specific options / capabilities for the driver
    */
   public SafariDriver(SafariOptions safariOptions) {
-    this(SafariDriverService.createDefaultService(safariOptions), safariOptions);
+    this(safariOptions.getUseTechnologyPreview() ?
+         SafariTechPreviewDriverService.createDefaultService() :
+         SafariDriverService.createDefaultService(),
+         safariOptions);
   }
 
   /**
@@ -83,10 +75,15 @@ public class SafariDriver extends RemoteWebDriver implements HasPermissions, Has
    *
    * @param safariOptions safari specific options / capabilities for the driver
    */
-  public SafariDriver(SafariDriverService safariServer, SafariOptions safariOptions) {
+  public SafariDriver(DriverService safariServer, SafariOptions safariOptions) {
     super(new SafariDriverCommandExecutor(safariServer), safariOptions);
     permissions = new AddHasPermissions().getImplementation(getCapabilities(), getExecuteMethod());
     debugger = new AddHasDebugger().getImplementation(getCapabilities(), getExecuteMethod());
+  }
+
+  @Beta
+  public static RemoteWebDriverBuilder builder() {
+    return RemoteWebDriver.builder().oneOf(new SafariOptions());
   }
 
   @Override
@@ -107,6 +104,13 @@ public class SafariDriver extends RemoteWebDriver implements HasPermissions, Has
     debugger.attachDebugger();
   }
 
+  @Override
+  public void setFileDetector(FileDetector detector) {
+    throw new WebDriverException(
+        "Setting the file detector only works on remote webdriver instances obtained " +
+        "via RemoteWebDriver");
+  }
+
   private static class SafariDriverCommandExecutor extends DriverCommandExecutor {
     public SafariDriverCommandExecutor(DriverService service) {
       super(service, getExtraCommands());
@@ -118,12 +122,5 @@ public class SafariDriver extends RemoteWebDriver implements HasPermissions, Has
         .putAll(new AddHasDebugger().getAdditionalCommands())
         .build();
     }
-  }
-
-  @Override
-  public void setFileDetector(FileDetector detector) {
-    throw new WebDriverException(
-        "Setting the file detector only works on remote webdriver instances obtained " +
-        "via RemoteWebDriver");
   }
 }

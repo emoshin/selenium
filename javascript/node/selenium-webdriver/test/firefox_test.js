@@ -25,14 +25,16 @@ const io = require('../io')
 const { Browser } = require('../')
 const { Context } = require('../firefox')
 const { Pages, suite } = require('../lib/test')
+const { locate } = require('../lib/test/resources')
 
-const WEBEXTENSION_EXTENSION_XPI = path.join(
-  __dirname,
-  '../lib/test/data/firefox/webextension.xpi'
+const WEBEXTENSION_EXTENSION_XPI = locate(
+  'common/extensions/webextensions-selenium-example.xpi'
 )
-const WEBEXTENSION_EXTENSION_ZIP = path.join(
-  __dirname,
-  '../lib/test/data/firefox/webextension.zip'
+const WEBEXTENSION_EXTENSION_ZIP = locate(
+  'common/extensions/webextensions-selenium-example.zip'
+)
+const WEBEXTENSION_EXTENSION_DIR = locate(
+  'common/extensions/webextensions-selenium-example'
 )
 
 const WEBEXTENSION_EXTENSION_ID =
@@ -99,7 +101,10 @@ suite(
           it('allows setting android activity', function () {
             let options = new firefox.Options().enableMobile()
             let firefoxOptions = options.firefoxOptions_()
-            assert.deepStrictEqual({ "androidPackage": "org.mozilla.firefox" }, firefoxOptions)
+            assert.deepStrictEqual(
+              { androidPackage: 'org.mozilla.firefox' },
+              firefoxOptions
+            )
           })
         })
 
@@ -220,21 +225,39 @@ suite(
         })
       })
 
-      it('addons can be installed and uninstalled at runtime', async function () {
-        driver = env.builder().build()
+      describe('installAddon', function () {
+        beforeEach(function () {
+          driver = env.builder().build()
+        })
 
-        await driver.get(Pages.echoPage)
-        await verifyWebExtensionNotInstalled()
+        it('addons can be installed and uninstalled at runtime', async function () {
+          await driver.get(Pages.echoPage)
+          await verifyWebExtensionNotInstalled()
 
-        let id = await driver.installAddon(WEBEXTENSION_EXTENSION_XPI)
-        await driver.sleep(1000) // Give extension time to install (yuck).
+          let id = await driver.installAddon(WEBEXTENSION_EXTENSION_XPI)
+          await driver.sleep(1000) // Give extension time to install (yuck).
 
-        await driver.get(Pages.echoPage)
-        await verifyWebExtensionWasInstalled()
+          await driver.get(Pages.echoPage)
+          await verifyWebExtensionWasInstalled()
 
-        await driver.uninstallAddon(id)
-        await driver.get(Pages.echoPage)
-        await verifyWebExtensionNotInstalled()
+          await driver.uninstallAddon(id)
+          await driver.get(Pages.echoPage)
+          await verifyWebExtensionNotInstalled()
+        })
+
+        it('unpacked addons can be installed and uninstalled at runtime', async function () {
+          await driver.get(Pages.echoPage)
+          await verifyWebExtensionNotInstalled()
+
+          let id = await driver.installAddon(WEBEXTENSION_EXTENSION_DIR, true)
+
+          await driver.get(Pages.echoPage)
+          await verifyWebExtensionWasInstalled()
+
+          await driver.uninstallAddon(id)
+          await driver.get(Pages.echoPage)
+          await verifyWebExtensionNotInstalled()
+        })
       })
 
       async function verifyUserAgentWasChanged() {

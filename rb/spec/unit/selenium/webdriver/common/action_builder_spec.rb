@@ -24,7 +24,7 @@ module Selenium
     describe ActionBuilder do
       let(:keyboard) { Interactions.key('key') }
       let(:mouse) { Interactions.pointer(:mouse, name: 'mouse') }
-      let(:bridge) { instance_double('Bridge').as_null_object }
+      let(:bridge) { instance_double(Remote::Bridge).as_null_object }
       let(:builder) { ActionBuilder.new(bridge, devices: [mouse, keyboard]) }
       let(:async_builder) { ActionBuilder.new(bridge, devices: [mouse, keyboard], async: true) }
 
@@ -58,6 +58,11 @@ module Selenium
           action_builder = ActionBuilder.new(bridge, devices: [mouse, keyboard, none, touch])
 
           expect(action_builder.devices).to eq([mouse, keyboard, none, touch])
+        end
+
+        it 'accepts duration' do
+          action_builder = ActionBuilder.new(bridge, duration: 2200)
+          expect(action_builder.default_move_duration).to eq(2.2)
         end
 
         it 'does not accept additional devices if deprecated parameters are used' do
@@ -188,27 +193,47 @@ module Selenium
         it 'creates pause with default duration' do
           allow(mouse).to receive :create_pause
 
-          builder.pause(mouse)
+          builder.pause(device: mouse)
 
-          expect(mouse).to have_received(:create_pause).with(nil)
+          expect(mouse).to have_received(:create_pause).with(0)
         end
 
         it 'creates pause with provided duration' do
           allow(mouse).to receive :create_pause
 
-          builder.pause(mouse, 5)
+          builder.pause(device: mouse, duration: 5)
 
           expect(mouse).to have_received(:create_pause).with(5)
+        end
+
+        it 'has deprecated ordered parameters' do
+          expect {
+            builder.pause(mouse, 3)
+          }.to have_deprecated(:pause)
         end
       end
 
       describe '#pauses' do
+        it 'adds 2 pauses to a pointer device by default' do
+          allow(mouse).to receive :create_pause
+
+          builder.pauses
+
+          expect(mouse).to have_received(:create_pause).with(0).exactly(2).times
+        end
+
         it 'adds multiple pause commands' do
           allow(mouse).to receive :create_pause
 
-          builder.pauses(mouse, 3)
+          builder.pauses(device: mouse, number: 3)
 
-          expect(mouse).to have_received(:create_pause).with(nil).exactly(3).times
+          expect(mouse).to have_received(:create_pause).with(0).exactly(3).times
+        end
+
+        it 'has deprecated ordered parameters' do
+          expect {
+            builder.pauses(mouse, 3)
+          }.to have_deprecated(:pauses)
         end
       end
 

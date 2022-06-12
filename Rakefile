@@ -51,11 +51,11 @@ $DEBUG = true if ENV['debug'] == 'true'
 verbose($DEBUG)
 
 def release_version
-  '4.1'
+  '4.2'
 end
 
 def version
-  "#{release_version}.0"
+  "#{release_version}.2"
 end
 
 # The build system used by webdriver is layered on top of rake, and we call it
@@ -83,7 +83,7 @@ CrazyFun::Mappings::RakeMappings.new.add_all(crazy_fun)
 # FIXME: the rules for the targets were removed and build files won't load
 # crazy_fun.create_tasks(Dir['**/build.desc'])
 
-#  If it looks like a bazel target, build it with bazel
+# If it looks like a bazel target, build it with bazel
 rule /\/\/.*/ do |task|
   task.out = Bazel.execute('build', %w[--workspace_status_command scripts/build-info.py], task.name)
 end
@@ -96,15 +96,13 @@ task '//java/test/org/openqa/selenium/environment/webserver:webserver:uber' => [
 # Java targets required for release. These should all be java_export targets.
 # Generated from: bazel query 'kind(maven_publish, set(//java/... //third_party/...))' | sort
 JAVA_RELEASE_TARGETS = %w[
-  //java/src/com/thoughtworks/selenium/webdriven:webdriven.publish
   //java/src/org/openqa/selenium/chrome:chrome.publish
   //java/src/org/openqa/selenium/chromium:chromium.publish
   //java/src/org/openqa/selenium/devtools/v85:v85.publish
-  //java/src/org/openqa/selenium/devtools/v94:v94.publish
-  //java/src/org/openqa/selenium/devtools/v95:v95.publish
-  //java/src/org/openqa/selenium/devtools/v96:v96.publish
+  //java/src/org/openqa/selenium/devtools/v100:v100.publish
+  //java/src/org/openqa/selenium/devtools/v101:v101.publish
+  //java/src/org/openqa/selenium/devtools/v102:v102.publish
   //java/src/org/openqa/selenium/edge:edge.publish
-  //java/src/org/openqa/selenium/firefox/xpi:xpi.publish
   //java/src/org/openqa/selenium/firefox:firefox.publish
   //java/src/org/openqa/selenium/grid/sessionmap/jdbc:jdbc.publish
   //java/src/org/openqa/selenium/grid/sessionmap/redis:redis.publish
@@ -262,8 +260,7 @@ task test_rb_remote: [
   '//rb:remote-firefox-test',
   ('//rb:remote-firefox-nightly-test' if ENV['FIREFOX_NIGHTLY_BINARY']),
   ('//rb:remote-safari-test' if SeleniumRake::Checks.mac?),
-  # BUG - https://github.com/SeleniumHQ/selenium/issues/6791
-  # ('//rb:remote-safari-preview-test' if SeleniumRake::Checks.mac?),
+  ('//rb:remote-safari-preview-test' if SeleniumRake::Checks.mac?),
   ('//rb:remote-ie-test' if SeleniumRake::Checks.windows?),
   ('//rb:remote-edge-test' unless SeleniumRake::Checks.linux?)
 ].compact
@@ -363,10 +360,12 @@ task 'prep-release-zip': [
   '//java/src/org/openqa/selenium:client-zip',
   '//java/src/org/openqa/selenium/grid:server-zip',
   '//java/src/org/openqa/selenium/grid:executable-grid',
-  '//java/src/org/openqa/selenium/server/htmlrunner:selenium-runner_deploy.jar'
 ] do
-  ["build/dist/selenium-server-#{version}.zip", "build/dist/selenium-java-#{version}.zip",
-   "build/dist/selenium-server-#{version}.jar", "build/dist/selenium-html-runner-#{version}.jar"].each do |f|
+  [
+    "build/dist/selenium-server-#{version}.zip",
+    "build/dist/selenium-java-#{version}.zip",
+    "build/dist/selenium-server-#{version}.jar"
+  ].each do |f|
     rm_f(f) if File.exists?(f)
   end
 
@@ -378,8 +377,6 @@ task 'prep-release-zip': [
   chmod 0666, "build/dist/selenium-java-#{version}.zip"
   cp Rake::Task['//java/src/org/openqa/selenium/grid:executable-grid'].out, "build/dist/selenium-server-#{version}.jar", preserve: false
   chmod 0666, "build/dist/selenium-server-#{version}.jar"
-  cp Rake::Task['//java/src/org/openqa/selenium/server/htmlrunner:selenium-runner_deploy.jar'].out, "build/dist/selenium-html-runner-#{version}.jar", preserve: false
-  chmod 0666, "build/dist/selenium-html-runner-#{version}.jar"
 end
 
 task 'release-java': %i[prep-release-zip publish-maven]
@@ -404,7 +401,7 @@ def read_user_pass_from_m2_settings
   return [user, pass]
 end
 
-task 'publish-maven': JAVA_RELEASE_TARGETS + %w[//java/src/org/openqa/selenium/server/htmlrunner:selenium-runner_deploy.jar] do
+task 'publish-maven': JAVA_RELEASE_TARGETS do
  creds = read_user_pass_from_m2_settings
   JAVA_RELEASE_TARGETS.each do |p|
     Bazel::execute('run', ['--stamp', '--define', 'maven_repo=https://oss.sonatype.org/service/local/staging/deploy/maven2', '--define', "maven_user=#{creds[0]}", '--define', "maven_password=#{creds[1]}", '--define', 'gpg_sign=true'], p)
@@ -413,7 +410,7 @@ end
 
 task :'maven-install' do
   JAVA_RELEASE_TARGETS.each do |p|
-    Bazel::execute('run', ['--stamp', '--define', "maven_repo=file://#{ENV['HOME']}/.m2/repository", '--define', 'gpg_sign=true'], p)
+    Bazel::execute('run', ['--stamp', '--define', "maven_repo=file://#{ENV['HOME']}/.m2/repository", '--define', 'gpg_sign=false'], p)
   end
 end
 

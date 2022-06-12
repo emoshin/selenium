@@ -40,7 +40,7 @@ public class DockerFlags implements HasRoles {
     names = {"--docker-url"},
     description = "URL for connecting to the docker daemon"
   )
-  @ConfigValue(section = DockerOptions.DOCKER_SECTION, name = "url", example = DockerOptions.DEFAULT_DOCKER_URL)
+  @ConfigValue(section = DockerOptions.DOCKER_SECTION, name = "url", example = "\"" + DockerOptions.DEFAULT_DOCKER_URL + "\"")
   private String dockerUrl;
 
   @Parameter(
@@ -59,8 +59,8 @@ public class DockerFlags implements HasRoles {
 
   @Parameter(
     names = {"--docker", "-D"},
-    description = "Docker configs which map image name to stereotype capabilities (example " +
-                  "`-D selenium/standalone-firefox:latest '{\"browserName\": \"firefox\"}'`)",
+    description = "Docker configs which map image name to stereotype capabilities (example: " +
+                  "-D selenium/standalone-firefox:latest '{\"browserName\": \"firefox\"}')",
     arity = 2,
     variableArity = true,
     splitter = NonSplittingSplitter.class)
@@ -69,6 +69,20 @@ public class DockerFlags implements HasRoles {
     name = "configs",
     example = "[\"selenium/standalone-firefox:latest\", \"{\\\"browserName\\\": \\\"firefox\\\"}\"]")
   private List<String> images2Capabilities;
+
+  @Parameter(
+    names = {"--docker-devices"},
+    description = "Exposes devices to a container. Each device mapping declaration must have " +
+      " at least the path of the device in both host and container separated by a colon like " +
+      "in this example: /device/path/in/host:/device/path/in/container",
+    arity = 1,
+    variableArity = true,
+    splitter = NonSplittingSplitter.class)
+  @ConfigValue(
+    section = DockerOptions.DOCKER_SECTION,
+    name = "devices",
+    example = "[\"/dev/kvm:/dev/kvm\"]")
+  private List<String> devices;
 
   @Parameter(
     names = {"--docker-video-image"},
@@ -81,7 +95,7 @@ public class DockerFlags implements HasRoles {
     names = {"--docker-assets-path"},
     description = "Absolute path where assets will be stored"
   )
-  @ConfigValue(section = DockerOptions.DOCKER_SECTION, name = "assets-path", example = DockerOptions.DEFAULT_ASSETS_PATH)
+  @ConfigValue(section = DockerOptions.DOCKER_SECTION, name = "assets-path", example = "\"" + DockerOptions.DEFAULT_ASSETS_PATH + "\"")
   private String assetsPath;
 
   @Override

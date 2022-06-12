@@ -6,6 +6,17 @@ workspace(
     },
 )
 
+load("//common/private:env.bzl", "env")
+
+env(
+    name = "python_version",
+    env_var = ["PYTHON_VERSION"],
+)
+
+load("@python_version//:defs.bzl", "PYTHON_VERSION")
+
+register_toolchains(":py_toolchain")
+
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
@@ -50,17 +61,32 @@ bazel_skylib_workspace()
 
 http_archive(
     name = "rules_python",
-    url = "https://github.com/bazelbuild/rules_python/releases/download/0.5.0/rules_python-0.5.0.tar.gz",
-    sha256 = "cd6730ed53a002c56ce4e2f396ba3b3be262fd7cb68339f0377a45e8227fe332",
+    sha256 = "cdf6b84084aad8f10bf20b46b77cb48d83c319ebe6458a18e9d2cebf57807cdd",
+    strip_prefix = "rules_python-0.8.1",
+    url = "https://github.com/bazelbuild/rules_python/archive/refs/tags/0.8.1.tar.gz",
 )
+
+load("@rules_python//python:repositories.bzl", "python_register_toolchains")
+
+python_register_toolchains(
+    name = "python_toolchain",
+    python_version = PYTHON_VERSION,
+)
+
+load("@python_toolchain//:defs.bzl", "interpreter")
 
 # This one is only needed if you're using the packaging rules.
-load("@rules_python//python:pip.bzl", "pip_install")
+load("@rules_python//python:pip.bzl", "pip_parse")
 
-pip_install(
-    name = "dev_requirements",
-    requirements = "//py:requirements.txt",
+pip_parse(
+    name = "py_dev_requirements",
+    python_interpreter_target = interpreter,
+    requirements_lock = "//py:requirements_lock.txt",
 )
+
+load("@py_dev_requirements//:requirements.bzl", "install_deps")
+
+install_deps()
 
 http_archive(
     name = "rules_proto",
@@ -78,6 +104,10 @@ rules_proto_dependencies()
 
 rules_proto_toolchains()
 
+RULES_JVM_EXTERNAL_TAG = "4.2"
+
+RULES_JVM_EXTERNAL_SHA = "cd1a77b7b02e8e008439ca76fd34f5b07aecb8c752961f9640dea15e9e5ba1ca"
+
 http_archive(
     name = "rules_jvm_external",
     patch_args = [
@@ -87,9 +117,9 @@ http_archive(
         "//java:rules_jvm_external_javadoc.patch",
         "//java:rules_jvm_external_visibility.patch",
     ],
-    sha256 = "f36441aa876c4f6427bfb2d1f2d723b48e9d930b62662bf723ddfb8fc80f0140",
-    strip_prefix = "rules_jvm_external-4.1",
-    url = "https://github.com/bazelbuild/rules_jvm_external/archive/4.1.zip",
+    sha256 = RULES_JVM_EXTERNAL_SHA,
+    strip_prefix = "rules_jvm_external-%s" % RULES_JVM_EXTERNAL_TAG,
+    url = "https://github.com/bazelbuild/rules_jvm_external/archive/%s.zip" % RULES_JVM_EXTERNAL_TAG,
 )
 
 load("@rules_jvm_external//:repositories.bzl", "rules_jvm_external_deps")
@@ -99,6 +129,21 @@ rules_jvm_external_deps()
 load("@rules_jvm_external//:setup.bzl", "rules_jvm_external_setup")
 
 rules_jvm_external_setup()
+
+http_archive(
+    name = "contrib_rules_jvm",
+    sha256 = "79773625951a7a6dc0fc1636ef2388253b69a1e8109b34198c191953280648ab",
+    strip_prefix = "rules_jvm-0.3.0",
+    url = "https://github.com/bazel-contrib/rules_jvm/archive/v0.3.0.tar.gz",
+)
+
+load("@contrib_rules_jvm//:repositories.bzl", "contrib_rules_jvm_deps")
+
+contrib_rules_jvm_deps()
+
+load("@contrib_rules_jvm//:setup.bzl", "contrib_rules_jvm_setup")
+
+contrib_rules_jvm_setup()
 
 load("//java:maven_deps.bzl", "selenium_java_deps")
 
@@ -123,18 +168,18 @@ selenium_register_dotnet()
 
 http_archive(
     name = "build_bazel_rules_nodejs",
-    sha256 = "cfc289523cf1594598215901154a6c2515e8bf3671fd708264a6f6aefe02bf39",
-    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/4.4.6/rules_nodejs-4.4.6.tar.gz"],
+    sha256 = "0fad45a9bda7dc1990c47b002fd64f55041ea751fafc00cd34efb96107675778",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/5.5.0/rules_nodejs-5.5.0.tar.gz"],
 )
+
+load("@build_bazel_rules_nodejs//:repositories.bzl", "build_bazel_rules_nodejs_dependencies")
+
+build_bazel_rules_nodejs_dependencies()
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories", "npm_install")
 
 node_repositories(
-    node_version = "16.4.1",
-    package_json = [
-        "//:package.json",
-        "//javascript/grid-ui:package.json",
-    ],
+    node_version = "16.4.2",
 )
 
 npm_install(
@@ -145,6 +190,12 @@ npm_install(
 
 http_archive(
     name = "io_bazel_rules_closure",
+    patch_args = [
+        "-p1",
+    ],
+    patches = [
+        "//javascript:rules_closure_shell.patch",
+    ],
     sha256 = "d66deed38a0bb20581c15664f0ab62270af5940786855c7adc3087b27168b529",
     strip_prefix = "rules_closure-0.11.0",
     urls = [
@@ -160,10 +211,10 @@ rules_closure_toolchains()
 
 http_archive(
     name = "rules_pkg",
-    sha256 = "a89e203d3cf264e564fcb96b6e06dd70bc0557356eb48400ce4b5d97c2c3720d",
+    sha256 = "62eeb544ff1ef41d786e329e1536c1d541bb9bcad27ae984d57f18f314018e66",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.5.1/rules_pkg-0.5.1.tar.gz",
-        "https://github.com/bazelbuild/rules_pkg/releases/download/0.5.1/rules_pkg-0.5.1.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
+        "https://github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
     ],
 )
 
@@ -271,6 +322,7 @@ load(
 )
 
 rules_ruby_dependencies()
+
 rules_ruby_select_sdk(version = "host")
 
 load("@bazelruby_rules_ruby//ruby:defs.bzl", "ruby_bundle")

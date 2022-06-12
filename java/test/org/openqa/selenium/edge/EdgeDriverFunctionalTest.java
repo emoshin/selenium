@@ -18,6 +18,7 @@
 package org.openqa.selenium.edge;
 
 import org.junit.Test;
+import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
@@ -26,7 +27,10 @@ import org.openqa.selenium.chromium.HasCasting;
 import org.openqa.selenium.chromium.HasCdp;
 import org.openqa.selenium.chromium.HasNetworkConditions;
 import org.openqa.selenium.chromium.HasPermissions;
+import org.openqa.selenium.remote.RemoteWebDriverBuilder;
+import org.openqa.selenium.remote.http.ClientConfig;
 import org.openqa.selenium.testing.JUnit4TestBase;
+import org.openqa.selenium.testing.NoDriverBeforeTest;
 import org.openqa.selenium.testing.drivers.WebDriverBuilder;
 
 import java.time.Duration;
@@ -34,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.fail;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -41,6 +46,35 @@ public class EdgeDriverFunctionalTest extends JUnit4TestBase {
 
   private final String CLIPBOARD_READ = "clipboard-read";
   private final String CLIPBOARD_WRITE = "clipboard-write";
+
+  @Test
+  @NoDriverBeforeTest
+  public void builderGeneratesDefaultEdgeOptions() {
+    localDriver = EdgeDriver.builder().build();
+    Capabilities capabilities = ((EdgeDriver) localDriver).getCapabilities();
+
+    assertThat(localDriver.manage().timeouts().getImplicitWaitTimeout()).isEqualTo(Duration.ZERO);
+    assertThat(capabilities.getCapability("browserName")).isEqualTo("msedge");
+  }
+
+  @Test
+  @NoDriverBeforeTest
+  public void builderOverridesDefaultEdgeOptions() {
+    EdgeOptions options = new EdgeOptions();
+    options.setImplicitWaitTimeout(Duration.ofMillis(1));
+    localDriver = EdgeDriver.builder().oneOf(options).build();
+    assertThat(localDriver.manage().timeouts().getImplicitWaitTimeout()).isEqualTo(Duration.ofMillis(1));
+  }
+
+  @Test
+  public void builderWithClientConfigThrowsException() {
+    ClientConfig clientConfig = ClientConfig.defaultConfig().readTimeout(Duration.ofMinutes(1));
+    RemoteWebDriverBuilder builder = EdgeDriver.builder().config(clientConfig);
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+      .isThrownBy(builder::build)
+      .withMessage("ClientConfig instances do not work for Local Drivers");
+  }
 
   @Test
   public void canSetPermission() {
@@ -58,27 +92,23 @@ public class EdgeDriverFunctionalTest extends JUnit4TestBase {
   }
 
   @Test
+  @NoDriverBeforeTest
   public void canSetPermissionHeadless() {
     EdgeOptions options = new EdgeOptions();
     options.setHeadless(true);
 
-    //TestEdgeDriver is not honoring headless request; using EdgeDriver instead
-    WebDriver driver = new WebDriverBuilder().get(options);
-    try {
-      HasPermissions permissions = (HasPermissions) driver;
+    localDriver = new WebDriverBuilder().get(options);
+    HasPermissions permissions = (HasPermissions) localDriver;
 
-      driver.get(pages.clicksPage);
-      assertThat(checkPermission(driver, CLIPBOARD_READ)).isEqualTo("prompt");
-      assertThat(checkPermission(driver, CLIPBOARD_WRITE)).isEqualTo("prompt");
+    localDriver.get(pages.clicksPage);
+    assertThat(checkPermission(localDriver, CLIPBOARD_READ)).isEqualTo("prompt");
+    assertThat(checkPermission(localDriver, CLIPBOARD_WRITE)).isEqualTo("prompt");
 
-      permissions.setPermission(CLIPBOARD_READ, "granted");
-      permissions.setPermission(CLIPBOARD_WRITE, "granted");
+    permissions.setPermission(CLIPBOARD_READ, "granted");
+    permissions.setPermission(CLIPBOARD_WRITE, "granted");
 
-      assertThat(checkPermission(driver, CLIPBOARD_READ)).isEqualTo("granted");
-      assertThat(checkPermission(driver, CLIPBOARD_WRITE)).isEqualTo("granted");
-    } finally {
-      driver.quit();
-    }
+    assertThat(checkPermission(localDriver, CLIPBOARD_READ)).isEqualTo("granted");
+    assertThat(checkPermission(localDriver, CLIPBOARD_WRITE)).isEqualTo("granted");
   }
 
   public String checkPermission(WebDriver driver, String permission){

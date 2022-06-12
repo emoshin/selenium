@@ -25,6 +25,7 @@ import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.build.InProject;
 import org.openqa.selenium.testing.JUnit4TestBase;
 import org.openqa.selenium.testing.NoDriverAfterTest;
+import org.openqa.selenium.testing.NoDriverBeforeTest;
 import org.openqa.selenium.testing.drivers.WebDriverBuilder;
 
 import java.io.File;
@@ -39,9 +40,9 @@ public class RemoteFirefoxDriverTest extends JUnit4TestBase {
   @Test
   @NoDriverAfterTest
   public void shouldAllowRemoteWebDriverBuilderToUseHasExtensions() {
-    Path extension = InProject.locate("third_party/firebug/favourite_colour-1.1-an+fx.xpi");
+    Path extension = InProject.locate("common/extensions/webextensions-selenium-example.xpi");
     String id = ((HasExtensions) driver).installExtension(extension);
-    assertThat(id).isEqualTo("favourite-colour-examples@mozilla.org");
+    assertThat(id).isEqualTo("webextensions-selenium-example@example.com");
 
     try {
       ((HasExtensions) driver).uninstallExtension(id);
@@ -58,39 +59,33 @@ public class RemoteFirefoxDriverTest extends JUnit4TestBase {
   }
 
   @Test
+  @NoDriverBeforeTest
   public void shouldAllowRemoteWebDriverBuilderToUseHasContext() throws MalformedURLException {
     FirefoxOptions options = new FirefoxOptions();
     String dir = "foo/bar";
     options.addPreference("browser.download.dir", dir);
-    WebDriver driver = new WebDriverBuilder().get(options);
+    localDriver = new WebDriverBuilder().get(options);
 
-    try {
-      ((HasContext) driver).setContext(FirefoxCommandContext.CHROME);
-      String result = (String) ((JavascriptExecutor) driver).executeScript("return Services.prefs.getStringPref('browser.download.dir')");
-      assertThat(result).isEqualTo(dir);
-    } finally {
-      driver.quit();
-    }
+    ((HasContext) localDriver).setContext(FirefoxCommandContext.CHROME);
+    String result = (String) ((JavascriptExecutor) localDriver).executeScript("return Services.prefs.getStringPref('browser.download.dir')");
+    assertThat(result).isEqualTo(dir);
   }
 
   @Test
+  @NoDriverBeforeTest
   public void shouldSetContext() {
     FirefoxOptions options = new FirefoxOptions();
     String dir = "foo/bar";
     options.addPreference("browser.download.dir", dir);
 
-    WebDriver driver = new WebDriverBuilder().get(options);
+    localDriver = new WebDriverBuilder().get(options);
 
-    try {
-      HasContext context = (HasContext) driver;
-      context.setContext(FirefoxCommandContext.CHROME);
+    HasContext context = (HasContext) localDriver;
+    context.setContext(FirefoxCommandContext.CHROME);
 
-      String result = (String) ((JavascriptExecutor) driver)
-        .executeScript("return Services.prefs.getStringPref('browser.download.dir')");
+    String result = (String) ((JavascriptExecutor) localDriver)
+      .executeScript("return Services.prefs.getStringPref('browser.download.dir')");
 
-      assertThat(result).isEqualTo(dir);
-    } finally {
-      driver.quit();
-    }
+    assertThat(result).isEqualTo(dir);
   }
 }

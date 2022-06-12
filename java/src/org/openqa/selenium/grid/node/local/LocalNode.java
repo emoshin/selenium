@@ -17,17 +17,6 @@
 
 package org.openqa.selenium.grid.node.local;
 
-import static com.google.common.collect.ImmutableSet.toImmutableSet;
-import static org.openqa.selenium.grid.data.Availability.DRAINING;
-import static org.openqa.selenium.grid.data.Availability.UP;
-import static org.openqa.selenium.grid.node.CapabilityResponseEncoder.getEncoder;
-import static org.openqa.selenium.remote.HttpSessionId.getSessionId;
-import static org.openqa.selenium.remote.RemoteTags.CAPABILITIES;
-import static org.openqa.selenium.remote.RemoteTags.SESSION_ID;
-import static org.openqa.selenium.remote.http.Contents.asJson;
-import static org.openqa.selenium.remote.http.Contents.string;
-import static org.openqa.selenium.remote.http.HttpMethod.DELETE;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Ticker;
 import com.google.common.cache.Cache;
@@ -38,11 +27,12 @@ import com.google.common.collect.ImmutableMap;
 
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.ImmutableCapabilities;
+import org.openqa.selenium.MutableCapabilities;
 import org.openqa.selenium.NoSuchSessionException;
 import org.openqa.selenium.PersistentCapabilities;
 import org.openqa.selenium.RetrySessionRequestException;
 import org.openqa.selenium.WebDriverException;
-import org.openqa.selenium.concurrent.Regularly;
+import org.openqa.selenium.concurrent.GuardedRunnable;
 import org.openqa.selenium.events.EventBus;
 import org.openqa.selenium.grid.data.Availability;
 import org.openqa.selenium.grid.data.CreateSessionRequest;
@@ -53,7 +43,6 @@ import org.openqa.selenium.grid.data.NodeHeartBeatEvent;
 import org.openqa.selenium.grid.data.NodeId;
 import org.openqa.selenium.grid.data.NodeStatus;
 import org.openqa.selenium.grid.data.Session;
-import org.openqa.selenium.grid.data.SessionClosedEvent;
 import org.openqa.selenium.grid.data.Slot;
 import org.openqa.selenium.grid.data.SlotId;
 import org.openqa.selenium.grid.jmx.JMXHelper;
@@ -93,12 +82,29 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static org.openqa.selenium.grid.data.Availability.DOWN;
+import static org.openqa.selenium.grid.data.Availability.DRAINING;
+import static org.openqa.selenium.grid.data.Availability.UP;
+import static org.openqa.selenium.grid.node.CapabilityResponseEncoder.getEncoder;
+import static org.openqa.selenium.remote.HttpSessionId.getSessionId;
+import static org.openqa.selenium.remote.RemoteTags.CAPABILITIES;
+import static org.openqa.selenium.remote.RemoteTags.SESSION_ID;
+import static org.openqa.selenium.remote.http.Contents.asJson;
+import static org.openqa.selenium.remote.http.Contents.string;
+import static org.openqa.selenium.remote.http.HttpMethod.DELETE;
 
 @ManagedService(objectName = "org.seleniumhq.grid:type=Node,name=LocalNode",
   description = "Node running the webdriver sessions.")
@@ -112,10 +118,14 @@ public class LocalNode extends Node {
   private final Duration heartbeatPeriod;
   private final HealthCheck healthCheck;
   private final int maxSessionCount;
+  private final int configuredSessionCount;
+  private final boolean cdpEnabled;
+  private final AtomicBoolean drainAfterSessions = new AtomicBoolean();
   private final List<SessionSlot> factories;
   private final Cache<SessionId, SessionSlot> currentSessions;
   private final Cache<SessionId, TemporaryFilesystem> tempFileSystems;
   private final AtomicInteger pendingSessions = new AtomicInteger();
+  private final AtomicInteger sessionCount = new AtomicInteger();
 
   private LocalNode(
     Tracer tracer,
@@ -124,6 +134,8 @@ public class LocalNode extends Node {
     URI gridUri,
     HealthCheck healthCheck,
     int maxSessionCount,
+    int drainAfterSessionCount,
+    boolean cdpEnabled,
     Ticker ticker,
     Duration sessionTimeout,
     Duration heartbeatPeriod,
@@ -135,29 +147,23 @@ public class LocalNode extends Node {
 
     this.externalUri = Require.nonNull("Remote node URI", uri);
     this.gridUri = Require.nonNull("Grid URI", gridUri);
-    this.maxSessionCount = Math.min(Require.positive("Max session count", maxSessionCount), factories.size());
+    this.maxSessionCount = Math.min(
+      Require.positive("Max session count", maxSessionCount), factories.size());
     this.heartbeatPeriod = heartbeatPeriod;
     this.factories = ImmutableList.copyOf(factories);
     Require.nonNull("Registration secret", registrationSecret);
+    this.configuredSessionCount = drainAfterSessionCount;
+    this.drainAfterSessions.set(this.configuredSessionCount > 0);
+    this.sessionCount.set(drainAfterSessionCount);
+    this.cdpEnabled = cdpEnabled;
 
     this.healthCheck = healthCheck == null ?
-                       () -> new HealthCheck.Result(
-                         isDraining() ? DRAINING : UP,
-                         String.format("%s is %s", uri, isDraining() ? "draining" : "up")) :
-                       healthCheck;
-
-    this.currentSessions = CacheBuilder.newBuilder()
-      .expireAfterAccess(sessionTimeout)
-      .ticker(ticker)
-      .removalListener((RemovalListener<SessionId, SessionSlot>) notification -> {
-        // Attempt to stop the session
-        LOG.log(Debug.getDebugLogLevel(), "Stopping session {0}", notification.getKey().toString());
-        SessionSlot slot = notification.getValue();
-        if (!slot.isAvailable()) {
-          slot.stop();
-        }
-      })
-      .build();
+                       () -> {
+                         NodeStatus status = getStatus();
+                         return new HealthCheck.Result(
+                           status.getAvailability(),
+                           String.format("%s is %s", uri, status.getAvailability()));
+                       } : healthCheck;
 
     this.tempFileSystems = CacheBuilder.newBuilder()
       .expireAfterAccess(sessionTimeout)
@@ -169,24 +175,66 @@ public class LocalNode extends Node {
       })
       .build();
 
-    Regularly sessionCleanup = new Regularly("Session Cleanup Node: " + externalUri);
-    sessionCleanup.submit(currentSessions::cleanUp, Duration.ofSeconds(30), Duration.ofSeconds(30));
-    Regularly tmpFileCleanup = new Regularly("TempFile Cleanup Node: " + externalUri);
-    tmpFileCleanup.submit(tempFileSystems::cleanUp, Duration.ofSeconds(30), Duration.ofSeconds(30));
-    Regularly regularHeartBeat = new Regularly("Heartbeat Node: " + externalUri);
-    regularHeartBeat.submit(() -> bus.fire(new NodeHeartBeatEvent(getStatus())), heartbeatPeriod,
-                            heartbeatPeriod);
-
-    bus.addListener(SessionClosedEvent.listener(id -> {
-      // Listen to session terminated events so we know when to fire the NodeDrainComplete event
-      if (this.isDraining()) {
-        int done = pendingSessions.decrementAndGet();
-        if (done <= 0) {
-          LOG.info("Firing node drain complete message");
-          bus.fire(new NodeDrainComplete(this.getId()));
+    this.currentSessions = CacheBuilder.newBuilder()
+      .expireAfterAccess(sessionTimeout)
+      .ticker(ticker)
+      .removalListener((RemovalListener<SessionId, SessionSlot>) notification -> {
+        if (notification.getKey() != null && notification.getValue() != null) {
+          // Attempt to stop the session
+          SessionSlot slot = notification.getValue();
+          SessionId sessionId = notification.getKey();
+          slot.stop();
+          // Invalidate temp file system
+          this.tempFileSystems.invalidate(sessionId);
+          // Decrement pending sessions if Node is draining
+          if (this.isDraining()) {
+            int done = pendingSessions.decrementAndGet();
+            if (done <= 0) {
+              LOG.info("Node draining complete!");
+              bus.fire(new NodeDrainComplete(this.getId()));
+            }
+          }
+        } else {
+          LOG.log(Debug.getDebugLogLevel(), "Received stop session notification with null values");
         }
-      }
-    }));
+      })
+      .build();
+
+    ScheduledExecutorService sessionCleanupNodeService =
+      Executors.newSingleThreadScheduledExecutor(
+        r -> {
+          Thread thread = new Thread(r);
+          thread.setDaemon(true);
+          thread.setName("Local Node - Session Cleanup " + externalUri);
+          return thread;
+        });
+    sessionCleanupNodeService.scheduleAtFixedRate(
+      GuardedRunnable.guard(currentSessions::cleanUp), 30, 30, TimeUnit.SECONDS);
+
+    ScheduledExecutorService tempFileCleanupNodeService =
+      Executors.newSingleThreadScheduledExecutor(
+        r -> {
+          Thread thread = new Thread(r);
+          thread.setDaemon(true);
+          thread.setName("TempFile Cleanup Node " + externalUri);
+          return thread;
+        });
+    tempFileCleanupNodeService.scheduleAtFixedRate(
+      GuardedRunnable.guard(tempFileSystems::cleanUp), 30, 30, TimeUnit.SECONDS);
+
+    ScheduledExecutorService heartbeatNodeService =
+      Executors.newSingleThreadScheduledExecutor(
+        r -> {
+          Thread thread = new Thread(r);
+          thread.setDaemon(true);
+          thread.setName("HeartBeat Node " + externalUri);
+          return thread;
+        });
+    heartbeatNodeService.scheduleAtFixedRate(
+      GuardedRunnable.guard(() -> bus.fire(new NodeHeartBeatEvent(getStatus()))),
+      heartbeatPeriod.getSeconds(),
+      heartbeatPeriod.getSeconds(),
+      TimeUnit.SECONDS);
 
     Runtime.getRuntime().addShutdownHook(new Thread(this::stopAllSessions));
     new JMXHelper().register(this);
@@ -317,6 +365,8 @@ public class LocalNode extends Node {
         ActiveSession session = possibleSession.right();
         currentSessions.put(session.getId(), slotToUse);
 
+        checkSessionCount();
+
         SessionId sessionId = session.getId();
         Capabilities caps = session.getCapabilities();
         SESSION_ID.accept(span, sessionId);
@@ -330,9 +380,15 @@ public class LocalNode extends Node {
 
         // The session we return has to look like it came from the node, since we might be dealing
         // with a webdriver implementation that only accepts connections from localhost
-        boolean isSupportingCdp = slotToUse.isSupportingCdp() ||
-                                  caps.getCapability("se:cdp") != null;
-        Session externalSession = createExternalSession(session, externalUri, isSupportingCdp);
+        Session externalSession = createExternalSession(
+          session,
+          externalUri,
+          slotToUse.isSupportingCdp(),
+          sessionRequest.getDesiredCapabilities());
+
+        String sessionCreatedMessage = "Session created by the Node";
+        LOG.info(String.format("%s. Id: %s, Caps: %s", sessionCreatedMessage, sessionId, caps));
+
         return Either.right(new CreateSessionResponse(
           externalSession,
           getEncoder(session.getDownstreamDialect()).apply(externalSession)));
@@ -360,7 +416,11 @@ public class LocalNode extends Node {
       throw new NoSuchSessionException("Cannot find session with id: " + id);
     }
 
-    return createExternalSession(slot.getSession(), externalUri, slot.isSupportingCdp());
+    return createExternalSession(
+      slot.getSession(),
+      externalUri,
+      slot.isSupportingCdp(),
+      slot.getSession().getCapabilities());
   }
 
   @Override
@@ -439,7 +499,6 @@ public class LocalNode extends Node {
     }
 
     currentSessions.invalidate(id);
-    tempFileSystems.invalidate(id);
   }
 
   private void stopAllSessions() {
@@ -450,13 +509,25 @@ public class LocalNode extends Node {
   }
 
   private Session createExternalSession(ActiveSession other, URI externalUri,
-                                        boolean isSupportingCdp) {
-    Capabilities toUse = ImmutableCapabilities.copyOf(other.getCapabilities());
+                                        boolean isSupportingCdp, Capabilities requestCapabilities) {
+    // We merge the session request capabilities and the session ones to keep the values sent
+    // by the user in the session information
+    Capabilities toUse = ImmutableCapabilities
+      .copyOf(requestCapabilities.merge(other.getCapabilities()));
 
     // Add se:cdp if necessary to send the cdp url back
-    if (isSupportingCdp) {
+    if ((isSupportingCdp || toUse.getCapability("se:cdp") != null) && cdpEnabled) {
       String cdpPath = String.format("/session/%s/se/cdp", other.getId());
       toUse = new PersistentCapabilities(toUse).setCapability("se:cdp", rewrite(cdpPath));
+    } else {
+      // Remove any se:cdp* from the response, CDP is not supported nor enabled
+      MutableCapabilities cdpFiltered = new MutableCapabilities();
+      toUse.asMap().forEach((key, value) -> {
+        if (!key.startsWith("se:cdp")) {
+          cdpFiltered.setCapability(key, value);
+        }
+      });
+      toUse = new PersistentCapabilities(cdpFiltered).setCapability("se:cdpEnabled", false);
     }
 
     // If enabled, set the VNC endpoint for live view
@@ -512,12 +583,22 @@ public class LocalNode extends Node {
       })
       .collect(toImmutableSet());
 
+    Availability availability = isDraining() ? DRAINING : UP;
+
+    // Check status in case this Node is a RelayNode
+    Optional<SessionSlot> relaySlot = factories.stream()
+      .filter(SessionSlot::hasRelayFactory)
+      .findFirst();
+    if (relaySlot.isPresent() && !relaySlot.get().isRelayServiceUp()) {
+      availability = DOWN;
+    }
+
     return new NodeStatus(
       getId(),
       externalUri,
       maxSessionCount,
       slots,
-      isDraining() ? DRAINING : UP,
+      availability,
       heartbeatPeriod,
       getNodeVersion(),
       getOsInfo());
@@ -541,6 +622,20 @@ public class LocalNode extends Node {
     }
   }
 
+  private void checkSessionCount() {
+    if (this.drainAfterSessions.get()) {
+      int remainingSessions = this.sessionCount.decrementAndGet();
+      LOG.log(
+        Debug.getDebugLogLevel(),
+        String.format("%s remaining sessions before draining Node", remainingSessions));
+      if (remainingSessions <= 0) {
+        LOG.info(String.format("Draining Node, configured sessions value (%s) has been reached.",
+                               this.configuredSessionCount));
+        drain();
+      }
+    }
+  }
+
   private Map<String, Object> toJson() {
     return ImmutableMap.of(
       "id", getId(),
@@ -560,7 +655,9 @@ public class LocalNode extends Node {
     private final URI gridUri;
     private final Secret registrationSecret;
     private final ImmutableList.Builder<SessionSlot> factories;
-    private int maxCount = NodeOptions.DEFAULT_MAX_SESSIONS;
+    private int maxSessions = NodeOptions.DEFAULT_MAX_SESSIONS;
+    private int drainAfterSessionCount = NodeOptions.DEFAULT_DRAIN_AFTER_SESSION_COUNT;
+    private boolean cdpEnabled = NodeOptions.DEFAULT_ENABLE_CDP;
     private Ticker ticker = Ticker.systemTicker();
     private Duration sessionTimeout = Duration.ofSeconds(NodeOptions.DEFAULT_SESSION_TIMEOUT);
     private HealthCheck healthCheck;
@@ -590,7 +687,17 @@ public class LocalNode extends Node {
     }
 
     public Builder maximumConcurrentSessions(int maxCount) {
-      this.maxCount = Require.positive("Max session count", maxCount);
+      this.maxSessions = Require.positive("Max session count", maxCount);
+      return this;
+    }
+
+    public Builder drainAfterSessionCount(int sessionCount) {
+      this.drainAfterSessionCount = sessionCount;
+      return this;
+    }
+
+    public Builder enableCdp(boolean cdpEnabled) {
+      this.cdpEnabled = cdpEnabled;
       return this;
     }
 
@@ -611,7 +718,9 @@ public class LocalNode extends Node {
         uri,
         gridUri,
         healthCheck,
-        maxCount,
+        maxSessions,
+        drainAfterSessionCount,
+        cdpEnabled,
         ticker,
         sessionTimeout,
         heartbeatPeriod,

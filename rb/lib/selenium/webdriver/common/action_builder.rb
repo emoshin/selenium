@@ -43,8 +43,9 @@ module Selenium
       #
 
       def initialize(bridge, deprecated_mouse = nil, deprecated_keyboard = nil, deprecated_async = nil,
-                     devices: [], async: false)
+                     devices: [], async: false, duration: 250)
         @bridge = bridge
+        @duration = duration
 
         @async = if deprecated_async.nil?
                    async
@@ -63,7 +64,7 @@ module Selenium
           add_input(deprecated_mouse)
           add_input(deprecated_keyboard)
         else
-          devices.each { |device| add_input(device) }
+          Array(devices).each { |device| add_input(device) }
         end
       end
 
@@ -193,8 +194,11 @@ module Selenium
       # @return [ActionBuilder] A self reference.
       #
 
-      def pause(device, duration = nil)
-        device.create_pause(duration)
+      def pause(deprecated_device = nil, deprecated_duration = nil, device: nil, duration: 0)
+        deprecate_method(deprecated_device, deprecated_duration)
+
+        device ||= deprecated_device || pointer_input
+        device.create_pause(deprecated_duration || duration)
         self
       end
 
@@ -214,7 +218,14 @@ module Selenium
       # @return [ActionBuilder] A self reference.
       #
 
-      def pauses(device, number, duration = nil)
+      def pauses(deprecated_device = nil, deprecated_number = nil, deprecated_duration = nil,
+                 device: nil, number: nil, duration: 0)
+        deprecate_method(deprecated_device, deprecated_duration, deprecated_number, method: :pauses)
+
+        number ||= deprecated_number || 2
+        device ||= deprecated_device || pointer_input
+        duration ||= deprecated_duration || 0
+
         number.times { device.create_pause(duration) }
         self
       end
@@ -224,7 +235,7 @@ module Selenium
       #
 
       def perform
-        @bridge.send_actions @devices.map(&:encode).compact
+        @bridge.send_actions @devices.filter_map(&:encode)
         clear_all_actions
         nil
       end
@@ -264,15 +275,26 @@ module Selenium
       #
 
       def add_input(device)
+        device = Interactions.send(device) if device.is_a?(Symbol) && Interactions.respond_to?(device)
+
         raise TypeError, "#{device.inspect} is not a valid InputDevice" unless device.is_a?(Interactions::InputDevice)
 
         unless @async
           max_device = @devices.max { |a, b| a.actions.length <=> b.actions.length }
-          pauses(device, max_device.actions.length) if max_device
+          pauses(device: device, number: max_device.actions.length) if max_device
         end
         @devices << device
         device
       end
+
+      def deprecate_method(device = nil, duration = nil, number = nil, method: :pause)
+        return unless device || number || duration
+
+        WebDriver.logger.deprecate "ActionBuilder##{method} with ordered parameters",
+                                   ':device, :duration, :number keywords',
+                                   id: method
+      end
+
     end # ActionBuilder
   end # WebDriver
 end # Selenium

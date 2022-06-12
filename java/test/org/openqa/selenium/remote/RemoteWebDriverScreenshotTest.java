@@ -56,13 +56,6 @@ public class RemoteWebDriverScreenshotTest extends JUnit4TestBase {
       return;
     }
 
-    RemoteWebDriver remote = (RemoteWebDriver) driver;
-    Boolean screenshots = (Boolean) remote.getCapabilities()
-        .getCapability(CapabilityType.TAKES_SCREENSHOT);
-    if (screenshots == null || !screenshots) {
-      System.out.println("Skipping test: remote driver cannot take screenshots");
-    }
-
     driver.get(pages.formPage);
     WebDriver toUse = new Augmenter().augment(driver);
     String screenshot = ((TakesScreenshot) toUse).getScreenshotAs(BASE64);
