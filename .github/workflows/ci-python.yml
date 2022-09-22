@@ -145,9 +145,10 @@ jobs:
       - name: Start XVFB
         run: Xvfb :99 &
       - name: Run browser tests in Chrome
-        uses: ./.github/actions/bazel
+        uses: ./.github/actions/bazel-test
         with:
-          command: test //py:test-chrome
+          query: //py:test-chrome
+          attempts: 3
         env:
           DISPLAY: :99
 
@@ -178,10 +179,8 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: '11'
-      - name: Setup Firefox
-        uses: browser-actions/setup-firefox@latest
-      - name: Setup GeckoDriver
-        uses: browser-actions/setup-geckodriver@latest
+      - name: Setup Firefox and GeckoDriver
+        uses: ./.github/actions/setup-firefox
       - name: Start XVFB
         run: Xvfb :99 &
       - name: Run browser tests in Firefox (Remote)
@@ -218,16 +217,15 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: '11'
-      - name: Setup Firefox
-        uses: browser-actions/setup-firefox@latest
-      - name: Setup GeckoDriver
-        uses: browser-actions/setup-geckodriver@latest
+      - name: Setup Firefox and GeckoDriver
+        uses: ./.github/actions/setup-firefox
       - name: Start XVFB
         run: Xvfb :99 &
       - name: Run browser tests in Firefox
-        uses: ./.github/actions/bazel
+        uses: ./.github/actions/bazel-test
         with:
-          command: test //py:test-firefox
+          query: //py:test-firefox
+          attempts: 3
         env:
           DISPLAY: :99
 
