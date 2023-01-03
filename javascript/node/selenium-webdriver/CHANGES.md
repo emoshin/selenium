@@ -1,3 +1,56 @@
+## v4.7.1
+
+#### :nail_care: Polish
+
+* feat/deprecation message for standalone3x (#11422)
+
+#### :bug: Bug Fix
+
+* feat/fix spawn format for SeleniumServer, issue 11405 (#11412)
+
+#### Committers: 1
+
+- Potapov Dmitriy ([@potapovDim](https://github.com/potapovDim))
+
+## v4.7.0
+
+#### :rocket: New Feature
+
+* Add support for Selenium Manager to work with IE Driver
+
+#### :nail_care: Polish
+
+* Adding CDP files for v108 and removing v105
+* Improve error handling for Selenium Manager
+
+## v4.6.1
+
+#### :bug: Bug Fix
+
+* Support Node 17 and above (#11262)
+
+#### :nail_care: Polish
+
+* Fix typos (#11258) 
+
+## v4.6.0
+
+#### :rocket: New Feature
+
+* [grid] Add ability to use Enter key to confirm (#11178)
+* [grid][ui] Add search field for running sessions (#11197)
+* Add support for selenium manager (#11189)
+
+#### :bug: Bug Fix
+
+* isPromise() thenable fix (#11048)
+* Fix: making methods static (#11182)
+
+#### :nail_care: Polish
+
+* fix a tiny typo in chromium.js (#11073)
+* Adding CDP files for v107 and removing v104
+
 ## v4.5.0
 
 #### :rocket: New Feature
@@ -35,6 +88,7 @@
 * Removing circular dependency Between webdriver.js and http.js
 * fix some typos in code and documentation 
 * add cdp v105 remove v102
+* add cdp v106 remove v103
 
 ## v4.4.0
 * Add support CDP 104 and remove CDP 101

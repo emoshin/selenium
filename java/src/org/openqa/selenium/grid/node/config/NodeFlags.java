@@ -34,6 +34,7 @@ import java.util.Set;
 import static org.openqa.selenium.grid.config.StandardGridRoles.NODE_ROLE;
 import static org.openqa.selenium.grid.node.config.NodeOptions.DEFAULT_DETECT_DRIVERS;
 import static org.openqa.selenium.grid.node.config.NodeOptions.DEFAULT_DRAIN_AFTER_SESSION_COUNT;
+import static org.openqa.selenium.grid.node.config.NodeOptions.DEFAULT_ENABLE_BIDI;
 import static org.openqa.selenium.grid.node.config.NodeOptions.DEFAULT_ENABLE_CDP;
 import static org.openqa.selenium.grid.node.config.NodeOptions.DEFAULT_HEARTBEAT_PERIOD;
 import static org.openqa.selenium.grid.node.config.NodeOptions.DEFAULT_MAX_SESSIONS;
@@ -205,12 +206,28 @@ public class NodeFlags implements HasRoles {
   public Boolean enableCdp = DEFAULT_ENABLE_CDP;
 
   @Parameter(
+    names = {"--enable-bidi"},
+    arity = 1,
+    description = "Enable BiDi proxying in Grid. A Grid admin can disable BiDi if the network does "
+                  + "not allow websockets. True by default")
+  @ConfigValue(section = NODE_SECTION, name = "enable-bidi", example = "true")
+  public Boolean enableBiDi = DEFAULT_ENABLE_BIDI;
+
+  @Parameter(
     names = {"--node-implementation"},
     description = "Full classname of non-default Node implementation. This is used to manage "
                   + "a session's lifecycle.")
   @ConfigValue(section = NODE_SECTION, name = "implementation",
     example = DEFAULT_NODE_IMPLEMENTATION)
   private String nodeImplementation = DEFAULT_NODE_IMPLEMENTATION;
+
+  @Parameter(
+    names = {"--downloads-path"},
+    description = "The default location wherein all browser triggered file downloads would be "
+      + "available to be retrieved from. This is usually the directory that you configure in "
+      + "your browser as the default location for storing downloaded files.")
+  @ConfigValue(section = NODE_SECTION, name = "downloads-path", example = "")
+  private String downloadsPath = "";
 
   @Override
   public Set<Role> getRoles() {

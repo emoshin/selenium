@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.chromium.options import ChromiumOptions
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 
 class Options(ChromiumOptions):
     KEY = "ms:edgeOptions"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._use_webview = False
 
@@ -41,7 +41,7 @@ class Options(ChromiumOptions):
         """
         caps = super().to_capabilities()
         if self._use_webview:
-            caps['browserName'] = 'webview2'
+            caps["browserName"] = "webview2"
 
         return caps
 

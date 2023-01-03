@@ -31,11 +31,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.openqa.selenium.remote.Browser.FIREFOX;
 
@@ -62,7 +64,9 @@ public class GeckoDriverService extends FirefoxDriverService {
       int port,
       List<String> args,
       Map<String, String> environment) throws IOException {
-    super(executable, port, DEFAULT_TIMEOUT, args, environment);
+    super(executable, port, DEFAULT_TIMEOUT,
+      unmodifiableList(new ArrayList<>(args)),
+      unmodifiableMap(new HashMap<>(environment)));
   }
 
   /**
@@ -79,7 +83,9 @@ public class GeckoDriverService extends FirefoxDriverService {
       Duration timeout,
       List<String> args,
       Map<String, String> environment) throws IOException {
-    super(executable, port, timeout, args, environment);
+    super(executable, port, timeout,
+      unmodifiableList(new ArrayList<>(args)),
+      unmodifiableMap(new HashMap<>(environment)));
   }
 
   /**
@@ -94,25 +100,13 @@ public class GeckoDriverService extends FirefoxDriverService {
     return new Builder().build();
   }
 
+  /**
+   *
+   * @param caps Capabilities instance
+   * @return default GeckoDriverService
+   */
   static GeckoDriverService createDefaultService(Capabilities caps) {
-    Builder builder = new Builder();
-
-    Object binary = caps.getCapability(FirefoxDriver.Capability.BINARY);
-    if (binary != null) {
-      FirefoxBinary actualBinary;
-      if (binary instanceof FirefoxBinary) {
-        actualBinary = (FirefoxBinary) binary;
-      } else if (binary instanceof String) {
-        actualBinary = new FirefoxBinary(new File(String.valueOf(binary)));
-      } else {
-        throw new IllegalArgumentException(
-            "Expected binary to be a string or a binary: " + binary);
-      }
-
-      builder.usingFirefoxBinary(actualBinary);
-    }
-
-    return builder.build();
+    return createDefaultService();
   }
 
   @Override
@@ -139,11 +133,6 @@ public class GeckoDriverService extends FirefoxDriverService {
 
     @Override
     public int score(Capabilities capabilities) {
-      if (capabilities.getCapability(FirefoxDriver.Capability.MARIONETTE) != null
-          && ! capabilities.is(FirefoxDriver.Capability.MARIONETTE)) {
-        return 0;
-      }
-
       int score = 0;
 
       if (FIREFOX.is(capabilities)) {
@@ -171,12 +160,6 @@ public class GeckoDriverService extends FirefoxDriverService {
     }
 
     @Override
-    protected FirefoxDriverService.Builder withOptions(FirefoxOptions options) {
-      usingFirefoxBinary(options.getBinary());
-      return this;
-    }
-
-    @Override
     protected File findDefaultExecutable() {
       return findExecutable(
         "geckodriver", GECKO_DRIVER_EXE_PROPERTY,
@@ -190,7 +173,10 @@ public class GeckoDriverService extends FirefoxDriverService {
       int wsPort = PortProber.findFreePort();
       args.add(String.format("--port=%d", getPort()));
       args.add(String.format("--websocket-port=%d", wsPort));
-      args.add(String.format("--allow-origins=http://localhost:%d", wsPort));
+      args.add("--allow-origins");
+      args.add(String.format("http://127.0.0.1:%d", wsPort));
+      args.add(String.format("http://localhost:%d", wsPort));
+      args.add(String.format("http://[::1]:%d", wsPort));
       if (firefoxBinary != null) {
         args.add("-b");
         args.add(firefoxBinary.getPath());

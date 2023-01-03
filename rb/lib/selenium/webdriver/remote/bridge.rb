@@ -367,18 +367,10 @@ module Selenium
         # actions
         #
 
-        def action(deprecated_async = nil, async: false, devices: [], duration: 250)
-          ActionBuilder.new self, nil, nil, deprecated_async, async: async, devices: devices, duration: duration
+        def action(async: false, devices: [], duration: 250)
+          ActionBuilder.new self, async: async, devices: devices, duration: duration
         end
         alias_method :actions, :action
-
-        def mouse
-          raise Error::UnsupportedOperationError, '#mouse is no longer supported, use #action instead'
-        end
-
-        def keyboard
-          raise Error::UnsupportedOperationError, '#keyboard is no longer supported, use #action instead'
-        end
 
         def send_actions(data)
           execute :actions, {}, {actions: data}
@@ -400,7 +392,7 @@ module Selenium
           # TODO: rework file detectors before Selenium 4.0
           if @file_detector
             local_files = keys.first&.split("\n")&.map { |key| @file_detector.call(Array(key)) }&.compact
-            if local_files.any?
+            if local_files&.any?
               keys = local_files.map { |local_file| upload(local_file) }
               keys = Array(keys.join("\n"))
             end

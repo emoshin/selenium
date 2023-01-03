@@ -70,10 +70,13 @@ public class LocalNodeFactory {
       .sessionTimeout(sessionTimeout)
       .drainAfterSessionCount(nodeOptions.getDrainAfterSessionCount())
       .enableCdp(nodeOptions.isCdpEnabled())
+      .enableBiDi(nodeOptions.isBiDiEnabled())
       .heartbeatPeriod(nodeOptions.getHeartbeatPeriod());
 
     List<DriverService.Builder<?, ?>> builders = new ArrayList<>();
     ServiceLoader.load(DriverService.Builder.class).forEach(builders::add);
+
+    nodeOptions.getDownloadsPath().ifPresent(builder::downloadsPath);
 
     nodeOptions
       .getSessionFactories(

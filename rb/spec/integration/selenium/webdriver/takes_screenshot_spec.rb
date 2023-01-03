@@ -85,28 +85,27 @@ module Selenium
           viewport_height = driver.execute_script("return window.innerHeight;")
 
           screenshot = driver.save_screenshot path
+          width, height = png_size(screenshot)
 
-          if Platform.linux?
-            expect(File.read(screenshot)[0x10..0x18].unpack1('NN')).to be <= viewport_width
-            expect(File.read(screenshot)[0x10..0x18].unpack('NN').last).to be <= viewport_height
-          else
-            expect(File.read(screenshot)[0x10..0x18].unpack1('NN') / 2).to be <= viewport_width
-            expect(File.read(screenshot)[0x10..0x18].unpack('NN').last / 2).to be <= viewport_height
-          end
+          expect(width).to be <= viewport_width
+          expect(height).to be <= viewport_height
         end
 
-        it 'takes full page screenshot', exclusive: {browser: :firefox} do
+        it 'takes full page screenshot', exclusive: {browser: :firefox},
+                                         except: [{ci: :github,
+                                                   platform: :windows,
+                                                   reason: 'Some issues with resolution?'},
+                                                  {platform: :macosx,
+                                                   headless: true,
+                                                   reason: 'showing half resolution of what expected'}] do
           viewport_width = driver.execute_script("return window.innerWidth;")
           viewport_height = driver.execute_script("return window.innerHeight;")
 
           screenshot = driver.save_screenshot path, full_page: true
-          if Platform.linux?
-            expect(File.read(screenshot)[0x10..0x18].unpack1('NN')).to be >= viewport_width
-            expect(File.read(screenshot)[0x10..0x18].unpack('NN').last).to be > viewport_height
-          else
-            expect(File.read(screenshot)[0x10..0x18].unpack1('NN') / 2).to be >= viewport_width
-            expect(File.read(screenshot)[0x10..0x18].unpack('NN').last / 2).to be > viewport_height
-          end
+          width, height = png_size(screenshot)
+
+          expect(width).to be >= viewport_width
+          expect(height).to be > viewport_height
         end
 
         it 'does not take full page screenshot', except: {browser: :firefox} do

@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
+import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 import static org.openqa.selenium.PageLoadStrategy.EAGER;
 import static org.openqa.selenium.firefox.FirefoxDriver.SystemProperty.BROWSER_BINARY;
 import static org.openqa.selenium.firefox.FirefoxDriver.SystemProperty.BROWSER_PROFILE;
@@ -58,14 +59,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Tag("UnitTests")
-public class FirefoxOptionsTest {
+class FirefoxOptionsTest {
 
   @Test
-  public void canInitFirefoxOptionsWithCapabilities() {
+  void canInitFirefoxOptionsWithCapabilities() {
     FirefoxOptions options = new FirefoxOptions(new ImmutableCapabilities(
       PAGE_LOAD_STRATEGY, PageLoadStrategy.EAGER,
       ACCEPT_INSECURE_CERTS, true));
@@ -75,7 +77,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void canInitFirefoxOptionsWithCapabilitiesThatContainFirefoxOptionsAsMap() {
+  void canInitFirefoxOptionsWithCapabilitiesThatContainFirefoxOptionsAsMap() {
     FirefoxProfile profile = new FirefoxProfile();
     Capabilities caps = new ImmutableCapabilities(
       FIREFOX_OPTIONS, ImmutableMap.of("profile", profile));
@@ -86,12 +88,12 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void binaryPathNeedNotExist() {
+  void binaryPathNeedNotExist() {
     new FirefoxOptions().setBinary("does/not/exist");
   }
 
   @Test
-  public void shouldKeepRelativePathToBinaryAsIs() {
+  void shouldKeepRelativePathToBinaryAsIs() {
     FirefoxOptions options = new FirefoxOptions().setBinary("some/path");
     assertThat(options.getBinary())
       .extracting(FirefoxBinary::getFile)
@@ -100,7 +102,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldKeepWindowsDriveLetterInPathToBinary() {
+  void shouldKeepWindowsDriveLetterInPathToBinary() {
     FirefoxOptions options = new FirefoxOptions().setBinary("F:\\some\\path");
     assertThat(options.getBinary())
       .extracting(FirefoxBinary::getFile)
@@ -109,7 +111,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldKeepWindowsNetworkFileSystemRootInPathToBinary() {
+  void shouldKeepWindowsNetworkFileSystemRootInPathToBinary() {
     FirefoxOptions options = new FirefoxOptions().setBinary("\\\\server\\share\\some\\path");
     assertThat(options.getBinary())
       .extracting(FirefoxBinary::getFile)
@@ -118,7 +120,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldKeepAFirefoxBinaryAsABinaryIfSetAsOne() throws IOException {
+  void shouldKeepAFirefoxBinaryAsABinaryIfSetAsOne() throws IOException {
     File fakeExecutable = Files.createTempFile("firefox", ".exe").toFile();
     fakeExecutable.deleteOnExit();
     FirefoxBinary binary = new FirefoxBinary(fakeExecutable);
@@ -127,7 +129,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void stringBasedBinaryRemainsAbsoluteIfSetAsAbsolute() {
+  void stringBasedBinaryRemainsAbsoluteIfSetAsAbsolute() {
     Map<String, Object> json = new FirefoxOptions().setBinary("/i/like/cheese").asMap();
 
     assertThat(json.get(FIREFOX_OPTIONS))
@@ -136,7 +138,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void pathBasedBinaryRemainsAbsoluteIfSetAsAbsolute() {
+  void pathBasedBinaryRemainsAbsoluteIfSetAsAbsolute() {
     Map<String, Object> json = new FirefoxOptions().setBinary(Paths.get("/i/like/cheese")).asMap();
 
     assertThat(json.get(FIREFOX_OPTIONS))
@@ -145,7 +147,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldPickUpBinaryFromSystemPropertyIfSet() throws IOException {
+  void shouldPickUpBinaryFromSystemPropertyIfSet() throws IOException {
     JreSystemProperty property = new JreSystemProperty(BROWSER_BINARY);
 
     Path binary = Files.createTempFile("firefox", ".exe");
@@ -167,7 +169,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldPickUpProfileFromSystemProperty() {
+  void shouldPickUpProfileFromSystemProperty() {
     FirefoxProfile defaultProfile = new ProfilesIni().getProfile("default");
     assumeThat(defaultProfile).isNotNull();
 
@@ -184,7 +186,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldThrowAnExceptionIfSystemPropertyProfileDoesNotExist() {
+  void shouldThrowAnExceptionIfSystemPropertyProfileDoesNotExist() {
     String unlikelyProfileName = "this-profile-does-not-exist-also-cheese";
     FirefoxProfile foundProfile = new ProfilesIni().getProfile(unlikelyProfileName);
     assumeThat(foundProfile).isNull();
@@ -201,7 +203,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldGetStringPreferencesFromGetProfile() {
+  void shouldGetStringPreferencesFromGetProfile() {
     String key = "browser.startup.homepage";
     String value = "about:robots";
 
@@ -218,7 +220,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldGetIntegerPreferencesFromGetProfile() {
+  void shouldGetIntegerPreferencesFromGetProfile() {
     String key = "key";
     int value = 5;
 
@@ -235,7 +237,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void shouldGetBooleanPreferencesFromGetProfile() {
+  void shouldGetBooleanPreferencesFromGetProfile() {
     String key = "key";
     boolean value = true;
 
@@ -252,7 +254,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void callingToStringWhenTheBinaryDoesNotExistShouldNotCauseAnException() {
+  void callingToStringWhenTheBinaryDoesNotExistShouldNotCauseAnException() {
     FirefoxOptions options =
       new FirefoxOptions().setBinary("there's nothing better in life than cake or peas.");
     assertThatNoException().isThrownBy(options::toString);
@@ -260,18 +262,18 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void logLevelStringRepresentationIsLowercase() {
+  void logLevelStringRepresentationIsLowercase() {
     assertThat(DEBUG.toString()).isEqualTo("debug");
   }
 
   @Test
-  public void canBuildLogLevelFromStringRepresentation() {
+  void canBuildLogLevelFromStringRepresentation() {
     assertThat(FirefoxDriverLogLevel.fromString("warn")).isEqualTo(WARN);
     assertThat(FirefoxDriverLogLevel.fromString("ERROR")).isEqualTo(ERROR);
   }
 
   @Test
-  public void canConvertOptionsWithArgsToCapabilitiesAndRestoreBack() {
+  void canConvertOptionsWithArgsToCapabilitiesAndRestoreBack() {
     FirefoxOptions options = new FirefoxOptions(
       new MutableCapabilities(new FirefoxOptions().addArguments("-a", "-b")));
     Object options2 = options.asMap().get(FirefoxOptions.FIREFOX_OPTIONS);
@@ -281,7 +283,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void canConvertOptionsWithPrefsToCapabilitiesAndRestoreBack() {
+  void canConvertOptionsWithPrefsToCapabilitiesAndRestoreBack() {
     FirefoxOptions options = new FirefoxOptions(
       new MutableCapabilities(
         new FirefoxOptions()
@@ -299,7 +301,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void canConvertOptionsWithBinaryToCapabilitiesAndRestoreBack() throws IOException {
+  void canConvertOptionsWithBinaryToCapabilitiesAndRestoreBack() throws IOException {
     // Don't assume Firefox is actually installed and available
     Path tempFile = Files.createTempFile("firefoxoptions", "test");
 
@@ -312,7 +314,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void roundTrippingToCapabilitiesAndBackWorks() {
+  void roundTrippingToCapabilitiesAndBackWorks() {
     FirefoxOptions expected = new FirefoxOptions()
       .addPreference("cake", "walk");
 
@@ -324,7 +326,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void optionsAsMapShouldBeImmutable() {
+  void optionsAsMapShouldBeImmutable() {
     Map<String, Object> options = new FirefoxOptions()
       .addPreference("alpha", "beta")
       .addArguments("--cheese")
@@ -346,7 +348,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void mergingOptionsMergesArguments() {
+  void mergingOptionsMergesArguments() {
     FirefoxOptions one = new FirefoxOptions().addArguments("verbose");
     FirefoxOptions two = new FirefoxOptions().addArguments("silent");
     FirefoxOptions merged = one.merge(two);
@@ -358,7 +360,7 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void mergingOptionsMergesPreferences() {
+  void mergingOptionsMergesPreferences() {
     FirefoxOptions one = new FirefoxOptions()
       .addPreference("opt1", "val1")
       .addPreference("opt2", "val2");
@@ -376,7 +378,132 @@ public class FirefoxOptionsTest {
   }
 
   @Test
-  public void firefoxOptionsShouldEqualEquivalentImmutableCapabilities() {
+  void mergingOptionsWithMutableCapabilities() {
+    MutableCapabilities one = new MutableCapabilities();
+
+    FirefoxOptions options = new FirefoxOptions();
+    options.addArguments("verbose");
+    options.addArguments("silent");
+    options.addPreference("opt1", "val1");
+    options.addPreference("opt2", "val4");
+    options.setAcceptInsecureCerts(true);
+
+    String key = "browser.startup.homepage";
+    String value = "about:robots";
+
+    FirefoxProfile profile = new FirefoxProfile();
+    profile.setPreference(key, value);
+
+    options.setProfile(profile);
+
+    options.setLogLevel(DEBUG);
+
+    File binary = TestUtilities.createTmpFile("binary");
+    options.setBinary(binary.toPath());
+
+    one.setCapability(FIREFOX_OPTIONS, options);
+
+    FirefoxOptions two = new FirefoxOptions();
+    two.addArguments("verbose");
+    two.addPreference("opt2", "val2");
+    two.addPreference("opt3", "val3");
+    two = two.merge(one);
+
+    Map<String, Object> map = two.asMap();
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(FIREFOX_OPTIONS).asInstanceOf(MAP)
+      .extractingByKey("args").asInstanceOf(LIST)
+      .containsExactly("verbose", "silent");
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(FIREFOX_OPTIONS).asInstanceOf(MAP)
+      .extractingByKey("prefs").asInstanceOf(MAP)
+      .containsEntry("opt1", "val1")
+      .containsEntry("opt2", "val4")
+      .containsEntry("opt3", "val3");
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(ACCEPT_INSECURE_CERTS).isExactlyInstanceOf(Boolean.class);
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(FIREFOX_OPTIONS).asInstanceOf(MAP)
+      .extractingByKey("binary").asInstanceOf(STRING)
+      .isEqualTo(binary.getPath());
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(FIREFOX_OPTIONS).asInstanceOf(MAP)
+      .extractingByKey("log").asInstanceOf(MAP)
+      .containsEntry("level", "debug");
+
+    FirefoxProfile extractedProfile = two.getProfile();
+    assertThat(extractedProfile.getStringPreference(key, "-")).isEqualTo(value);
+  }
+
+  @Test
+  void mergingOptionsWithOptionsAsMutableCapabilities() throws IOException {
+    Map<String, String> prefs = new HashMap<>();
+    prefs.put("opt1", "val1");
+    prefs.put("opt2", "val4");
+
+    String key = "browser.startup.homepage";
+    String value = "about:robots";
+
+    FirefoxProfile profile = new FirefoxProfile();
+    profile.setPreference(key, value);
+
+    File binary = TestUtilities.createTmpFile("binary");
+
+    MutableCapabilities browserCaps = new MutableCapabilities();
+
+    browserCaps.setCapability("args", Arrays.asList("verbose", "silent"));
+    browserCaps.setCapability("prefs", prefs);
+    browserCaps.setCapability("profile", profile.toJson());
+    browserCaps.setCapability("binary", binary.getPath());
+    browserCaps.setCapability("log", DEBUG.toJson());
+
+    MutableCapabilities one = new MutableCapabilities();
+    one.setCapability(FIREFOX_OPTIONS, browserCaps);
+
+    FirefoxOptions two = new FirefoxOptions();
+    two.addArguments("verbose");
+    two.addPreference("opt2", "val2");
+    two.addPreference("opt3", "val3");
+    two = two.merge(one);
+
+    Map<String, Object> map = two.asMap();
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(FIREFOX_OPTIONS).asInstanceOf(MAP)
+      .extractingByKey("args").asInstanceOf(LIST)
+      .containsExactly("verbose", "silent");
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(FIREFOX_OPTIONS).asInstanceOf(MAP)
+      .extractingByKey("prefs").asInstanceOf(MAP)
+      .containsEntry("opt1", "val1")
+      .containsEntry("opt2", "val4")
+      .containsEntry("opt3", "val3");
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(ACCEPT_INSECURE_CERTS).isExactlyInstanceOf(Boolean.class);
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(FIREFOX_OPTIONS).asInstanceOf(MAP)
+      .extractingByKey("binary").asInstanceOf(STRING)
+      .isEqualTo(binary.getPath());
+
+    assertThat(map).asInstanceOf(MAP)
+      .extractingByKey(FIREFOX_OPTIONS).asInstanceOf(MAP)
+      .extractingByKey("log").asInstanceOf(MAP)
+      .containsEntry("level", "debug");
+
+    FirefoxProfile extractedProfile = two.getProfile();
+    assertThat(extractedProfile.getStringPreference(key, "-")).isEqualTo(value);
+  }
+
+  @Test
+  void firefoxOptionsShouldEqualEquivalentImmutableCapabilities() {
     FirefoxOptions
       options =
       new FirefoxOptions().addArguments("hello").setPageLoadStrategy(EAGER).setHeadless(true);

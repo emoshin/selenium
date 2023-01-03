@@ -30,7 +30,6 @@ POINTER_KINDS = {POINTER_MOUSE, POINTER_TOUCH, POINTER_PEN}
 
 
 class Interaction:
-
     PAUSE = "pause"
 
     def __init__(self, source) -> None:
@@ -38,13 +37,9 @@ class Interaction:
 
 
 class Pause(Interaction):
-
     def __init__(self, source, duration: float = 0) -> None:
         super().__init__(source)
         self.duration = duration
 
     def encode(self) -> typing.Dict[str, typing.Union[str, int]]:
-        return {
-            "type": self.PAUSE,
-            "duration": int(self.duration * 1000)
-        }
+        return {"type": self.PAUSE, "duration": int(self.duration * 1000)}

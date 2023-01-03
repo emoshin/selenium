@@ -54,16 +54,18 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
+import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @SuppressWarnings("DuplicatedCode")
-public class NodeOptionsTest {
+class NodeOptionsTest {
 
   @SuppressWarnings("ReturnValueIgnored")
   @Test
-  public void canConfigureNodeWithDriverDetection() {
+  void canConfigureNodeWithDriverDetection() {
     assumeFalse(Boolean.parseBoolean(System.getenv("GITHUB_ACTIONS")), "We don't have driver servers in PATH when we run unit tests");
     assumeTrue(new ChromeDriverInfo().isAvailable(), "ChromeDriver needs to be available");
 
@@ -86,7 +88,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void shouldDetectCorrectDriversOnWindows() {
+  void shouldDetectCorrectDriversOnWindows() {
     assumeTrue(Platform.getCurrent().is(Platform.WINDOWS));
     assumeFalse(Boolean.parseBoolean(System.getenv("GITHUB_ACTIONS")),
       "We don't have driver servers in PATH when we run unit tests");
@@ -107,14 +109,14 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void cdpCanBeDisabled() {
+  void cdpCanBeDisabled() {
     Config config = new MapConfig(singletonMap("node", singletonMap("enable-cdp", "false")));
     NodeOptions nodeOptions = new NodeOptions(config);
     assertThat(nodeOptions.isCdpEnabled()).isFalse();
   }
 
   @Test
-  public void shouldDetectCorrectDriversOnMac() {
+  void shouldDetectCorrectDriversOnMac() {
     assumeTrue(Platform.getCurrent().is(Platform.MAC));
     assumeFalse(Boolean.parseBoolean(System.getenv("GITHUB_ACTIONS")),
       "We don't have driver servers in PATH when we run unit tests");
@@ -133,7 +135,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void platformNameIsAddedByDefault() {
+  void platformNameIsAddedByDefault() {
     Config config = new MapConfig(singletonMap("node", singletonMap("detect-drivers", "true")));
 
     List<Capabilities> reported = new ArrayList<>();
@@ -148,7 +150,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void vncEnabledCapabilityIsAddedWhenEnvVarIsTrue() {
+  void vncEnabledCapabilityIsAddedWhenEnvVarIsTrue() {
     Config config = new MapConfig(singletonMap("node", singletonMap("detect-drivers", "true")));
 
     List<Capabilities> reported = new ArrayList<>();
@@ -168,7 +170,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void vncEnabledCapabilityIsNotAddedWhenEnvVarIsFalse() {
+  void vncEnabledCapabilityIsNotAddedWhenEnvVarIsFalse() {
     Config config = new MapConfig(singletonMap("node", singletonMap("detect-drivers", "true")));
 
     List<Capabilities> reported = new ArrayList<>();
@@ -188,7 +190,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void canConfigureNodeWithoutDriverDetection() {
+  void canConfigureNodeWithoutDriverDetection() {
     Config config = new MapConfig(singletonMap("node", singletonMap("detect-drivers", "false")));
     List<Capabilities> reported = new ArrayList<>();
     new NodeOptions(config).getSessionFactories(caps -> {
@@ -200,7 +202,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void shouldThrowConfigExceptionIfDetectDriversIsFalseAndSpecificDriverIsAdded() {
+  void shouldThrowConfigExceptionIfDetectDriversIsFalseAndSpecificDriverIsAdded() {
     Config config = new MapConfig(
       singletonMap("node",
         ImmutableMap.of(
@@ -222,7 +224,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void detectDriversByDefault() {
+  void detectDriversByDefault() {
     Config config = new MapConfig(emptyMap());
 
     List<Capabilities> reported = new ArrayList<>();
@@ -235,7 +237,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void canBeConfiguredToUseHelperClassesToCreateSessionFactories() {
+  void canBeConfiguredToUseHelperClassesToCreateSessionFactories() {
     Capabilities caps = new ImmutableCapabilities("browserName", "cheese");
     StringBuilder capsString = new StringBuilder();
     new Json().newOutput(capsString).setPrettyPrint(false).write(caps);
@@ -259,7 +261,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void driversCanBeConfigured() {
+  void driversCanBeConfigured() {
     String chromeLocation = "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta";
     String firefoxLocation = "/Applications/Firefox Nightly.app/Contents/MacOS/firefox-bin";
     ChromeOptions chromeOptions = new ChromeOptions();
@@ -317,7 +319,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void driversCanBeConfiguredWithASpecificWebDriverBinary() {
+  void driversCanBeConfiguredWithASpecificWebDriverBinary() {
     String chLocation = "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta";
     String ffLocation = "/Applications/Firefox Nightly.app/Contents/MacOS/firefox-bin";
     String chromeDriverLocation = "/path/to/chromedriver_beta/chromedriver";
@@ -367,7 +369,44 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void driversConfigNeedsStereotypeField() {
+  void driversCanBeConfiguredWithASpecificArguments() {
+    String chLocation = "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta";
+    String chromeDriverLocation = "/path/to/chromedriver_beta/chromedriver";
+    ChromeOptions chromeOptions = new ChromeOptions();
+    chromeOptions.setBinary(chLocation);
+    chromeOptions.addArguments("--homepage=https://www.selenium.dev");
+
+    StringBuilder chromeCaps = new StringBuilder();
+    new Json().newOutput(chromeCaps).setPrettyPrint(false).write(chromeOptions);
+
+    String[] rawConfig = new String[]{
+      "[node]",
+      "detect-drivers = false",
+      "[[node.driver-configuration]]",
+      "display-name = \"Chrome Beta\"",
+      String.format("webdriver-executable = '%s'", chromeDriverLocation),
+      String.format("stereotype = \"%s\"", chromeCaps.toString().replace("\"", "\\\""))
+    };
+    Config config = new TomlConfig(new StringReader(String.join("\n", rawConfig)));
+
+    List<Capabilities> reported = new ArrayList<>();
+    new NodeOptions(config).getSessionFactories(capabilities -> {
+      reported.add(capabilities);
+      return Collections.singleton(HelperFactory.create(config, capabilities));
+    });
+
+    assertThat(reported).is(supporting("chrome"));
+    assertThat(reported)
+      .filteredOn(capabilities -> capabilities.asMap().containsKey(ChromeOptions.CAPABILITY));
+
+    assertThat(reported.get(0).asMap()).asInstanceOf(MAP)
+      .extractingByKey(ChromeOptions.CAPABILITY).asInstanceOf(MAP)
+      .extractingByKey("args").asInstanceOf(LIST)
+      .containsExactly("--homepage=https://www.selenium.dev");
+  }
+
+  @Test
+  void driversConfigNeedsStereotypeField() {
     String[] rawConfig = new String[]{
       "[node]",
       "detect-drivers = false",
@@ -398,7 +437,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void maxSessionsFieldIsOptionalInDriversConfig() {
+  void maxSessionsFieldIsOptionalInDriversConfig() {
     String[] rawConfig = new String[]{
       "[node]",
       "detect-drivers = false",
@@ -423,7 +462,7 @@ public class NodeOptionsTest {
 
 
   @Test
-  public void shouldNotOverrideMaxSessionsByDefault() {
+  void shouldNotOverrideMaxSessionsByDefault() {
     assumeTrue(new ChromeDriverInfo().isAvailable(), "ChromeDriver needs to be available");
     int maxRecommendedSessions = Runtime.getRuntime().availableProcessors();
     int overriddenMaxSessions = maxRecommendedSessions + 10;
@@ -447,7 +486,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void canOverrideMaxSessionsWithFlag() {
+  void canOverrideMaxSessionsWithFlag() {
     assumeTrue(new ChromeDriverInfo().isAvailable(), "ChromeDriver needs to be available");
     int maxRecommendedSessions = Runtime.getRuntime().availableProcessors();
     int overriddenMaxSessions = maxRecommendedSessions + 10;
@@ -472,7 +511,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void settingTheHubFlagSetsTheGridUrlAndEventBusFlags() {
+  void settingTheHubFlagSetsTheGridUrlAndEventBusFlags() {
     String[] rawConfig = new String[]{
       "[node]",
       "hub = \"cheese.com\"",
@@ -485,7 +524,7 @@ public class NodeOptionsTest {
   }
 
   @Test
-  public void settingTheHubWithDefaultValueSetsTheGridUrlToTheNonLoopbackAddress() {
+  void settingTheHubWithDefaultValueSetsTheGridUrlToTheNonLoopbackAddress() {
     String[] rawConfig = new String[]{
       "[node]",
       "hub = \"http://0.0.0.0:4444\"",

@@ -21,7 +21,7 @@ jobs:
       bazel-target-prefix: '//rb'
 
   build:
-    if: ${{ needs.check_workflow.outputs.result == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(toJson(github.event.commits), '[run ruby]') == true }}
+    if: ${{ needs.check_workflow.outputs.result == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(toJson(github.event.commits), '[rb]') == true }}
     needs: check_workflow
     runs-on: ubuntu-latest
     strategy:
@@ -29,90 +29,145 @@ jobs:
       matrix:
         target: [ 'selenium-devtools', 'selenium-webdriver' ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-java@v1
+      - name: Checkout source tree
+        uses: actions/checkout@v3
+      - name: Setup Java
+        uses: actions/setup-java@v3
         with:
           java-version: 11
-      - uses: ruby/setup-ruby@v1
+          distribution: 'temurin'
+      - name: Cache Bazel artifacts
+        uses: ./.github/actions/cache-bazel
         with:
-          ruby-version: 2.7
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cache/bazel-disk
-            ~/.cache/bazel-repo
-          key: ${{ runner.os }}-bazel-ruby-build-gem-${{ matrix.target }}-${{ hashFiles('**/BUILD.bazel') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-ruby-build-gem-${{ matrix.target }}-
-      - uses: ./.github/actions/setup-bazelisk
-      - uses: ./.github/actions/bazel
+          workflow: ruby
+          key: gem-${{ matrix.target }}
+      - name: Build Gems
+        uses: ./.github/actions/bazel
         with:
           command: build //rb:${{ matrix.target }}
 
   chrome-test:
     if: ${{ needs.check_workflow.outputs.result == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(toJson(github.event.commits), '[run ruby]') == true }}
     needs: check_workflow
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         target: [ 'chrome-test', 'remote-chrome-test' ]
+        os: [ 'ubuntu-latest', 'windows-latest' ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-java@v1
+      - name: Checkout source tree
+        uses: actions/checkout@v3
+      - name: Setup Java
+        uses: actions/setup-java@v3
         with:
           java-version: 11
-      - uses: ruby/setup-ruby@v1
+          distribution: 'temurin'
+      - name: Cache Bazel artifacts
+        uses: ./.github/actions/cache-bazel
         with:
-          ruby-version: 2.7
-      - uses: actions/cache@v2
+          workflow: ruby
+          key: ${{ matrix.target }}
+      - name: Setup Fluxbox
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get -y install fluxbox
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@latest
         with:
-          path: |
-            ~/.cache/bazel-disk
-            ~/.cache/bazel-repo
-          key: ${{ runner.os }}-bazel-ruby-${{ matrix.target }}-${{ hashFiles('**/BUILD.bazel') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-ruby-${{ matrix.target }}-
-      - uses: ./.github/actions/setup-bazelisk
-      - uses: ./.github/actions/setup-chrome
-      - run: Xvfb :99 &
-      - uses: ./.github/actions/bazel
+          chrome-version: stable
+      - name: Start XVFB
+        if: matrix.os == 'ubuntu-latest'
+        run: Xvfb :99 &
+      - name: Start Fluxbox
+        if: matrix.os == 'ubuntu-latest'
+        run: fluxbox -display :99 &
+      - name: Set resolution
+        if: matrix.os == 'windows-latest'
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+      - name: Run Chrome tests
+        uses: ./.github/actions/bazel
         with:
-          command: test --test_output=all //rb:${{ matrix.target }}
+          command: test --cache_test_results=no --test_output=all //rb:${{ matrix.target }}
+          attempts: 3
         env:
           DISPLAY: :99
+
+  edge-test:
+    if: ${{ needs.check_workflow.outputs.result == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(toJson(github.event.commits), '[run ruby]') == true }}
+    needs: check_workflow
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ 'edge-test', 'remote-edge-test' ]
+        os: [ 'windows-latest' ]
+    steps:
+      - name: Checkout source tree
+        uses: actions/checkout@v3
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: 11
+          distribution: 'temurin'
+      - name: Cache Bazel artifacts
+        uses: ./.github/actions/cache-bazel
+        with:
+          workflow: ruby
+          key: ${{ matrix.target }}
+      - name: Setup Edge
+        uses: browser-actions/setup-edge@latest
+        with:
+          edge-version: stable
+      - name: Run Edge tests
+        uses: ./.github/actions/bazel
+        with:
+          command: test --cache_test_results=no --test_output=all //rb:${{ matrix.target }}
+          attempts: 3
 
   firefox-test:
     if: ${{ needs.check_workflow.outputs.result == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(toJson(github.event.commits), '[run ruby]') == true }}
     needs: check_workflow
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         target: [ 'firefox-test', 'remote-firefox-test' ]
+        os: [ 'ubuntu-latest', 'windows-latest' ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-java@v1
+      - name: Checkout source tree
+        uses: actions/checkout@v3
+      - name: Setup Java
+        uses: actions/setup-java@v3
         with:
           java-version: 11
-      - uses: ruby/setup-ruby@v1
+          distribution: 'temurin'
+      - name: Cache Bazel artifacts
+        uses: ./.github/actions/cache-bazel
         with:
-          ruby-version: 2.7
-      - uses: actions/cache@v2
+          workflow: ruby
+          key: ${{ matrix.target }}
+      - name: Setup Fluxbox
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get -y install fluxbox
+      - name: Setup Firefox
+        uses: abhi1693/setup-browser@v0.3.4
         with:
-          path: |
-            ~/.cache/bazel-disk
-            ~/.cache/bazel-repo
-          key: ${{ runner.os }}-bazel-ruby-${{ matrix.target }}-${{ hashFiles('**/BUILD.bazel') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-ruby-${{ matrix.target }}-
-      - uses: ./.github/actions/setup-bazelisk
-      - name: Setup Firefox and GeckoDriver
-        uses: ./.github/actions/setup-firefox
-      - run: Xvfb :99 &
-      - uses: ./.github/actions/bazel
+          browser: firefox
+          version: latest
+      - name: Start XVFB
+        if: matrix.os == 'ubuntu-latest'
+        run: Xvfb :99 &
+      - name: Start Fluxbox
+        if: matrix.os == 'ubuntu-latest'
+        run: fluxbox -display :99 &
+      - name: Set resolution
+        if: matrix.os == 'windows-latest'
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+      - name: Run Firefox tests
+        uses: ./.github/actions/bazel
         with:
-          command: test --test_output=all //rb:${{ matrix.target }}
+          command: test --cache_test_results=no --test_output=all //rb:${{ matrix.target }}
+          attempts: 3
         env:
           DISPLAY: :99
 
@@ -121,20 +176,15 @@ jobs:
     needs: check_workflow
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: ruby/setup-ruby@v1
+      - name: Checkout source tree
+        uses: actions/checkout@v3
+      - name: Cache Bazel artifacts
+        uses: ./.github/actions/cache-bazel
         with:
-          ruby-version: 2.7
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cache/bazel-disk
-            ~/.cache/bazel-repo
-          key: ${{ runner.os }}-bazel-ruby-docs-${{ hashFiles('**/BUILD.bazel') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-ruby-${{ matrix.target }}-
-      - uses: ./.github/actions/setup-bazelisk
-      - uses: ./.github/actions/bazel
+          workflow: ruby
+          key: docs
+      - name: Run docs tests
+        uses: ./.github/actions/bazel
         with:
           command: run //rb:docs
 
@@ -143,45 +193,41 @@ jobs:
     needs: check_workflow
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: ruby/setup-ruby@v1
+      - name: Checkout source tree
+        uses: actions/checkout@v3
+      - name: Cache Bazel artifacts
+        uses: ./.github/actions/cache-bazel
         with:
-          ruby-version: 2.7
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cache/bazel-disk
-            ~/.cache/bazel-repo
-          key: ${{ runner.os }}-bazel-ruby-lint-${{ hashFiles('**/BUILD.bazel') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-ruby-lint-
-      - uses: ./.github/actions/setup-bazelisk
-      - uses: ./.github/actions/bazel
+          workflow: ruby
+          key: lint
+      - name: Run lint tests
+        uses: ./.github/actions/bazel
         with:
           command: run //rb:lint
 
   unit-test:
     if: ${{ needs.check_workflow.outputs.result == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(toJson(github.event.commits), '[run ruby]') == true }}
     needs: check_workflow
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        ruby: [ '2.7', '3.1' ]
+        ruby: [ '2.7.6', '3.2.0', 'jruby-9.4.0.0', 'truffleruby-22.3.0' ]
+        os: ['ubuntu-latest']
+        include:
+          - ruby: 2.7.6
+            os: windows-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: ruby/setup-ruby@v1
+      - name: Checkout source tree
+        uses: actions/checkout@v3
+      - name: Cache Bazel artifacts
+        uses: ./.github/actions/cache-bazel
         with:
-          ruby-version: ${{ matrix.ruby }}
-      - uses: actions/cache@v2
+          workflow: ruby
+          key: unit-test-${{ matrix.ruby }}
+      - name: Set Ruby version to ${{ matrix.ruby }}
+        run: echo 'RUBY_VERSION = "${{ matrix.ruby }}"' > rb/ruby_version.bzl
+      - name: Run unit tests
+        uses: ./.github/actions/bazel
         with:
-          path: |
-            ~/.cache/bazel-disk
-            ~/.cache/bazel-repo
-          key: ${{ runner.os }}-bazel-ruby-unit-test-${{ matrix.ruby }}-${{ hashFiles('**/BUILD.bazel') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-ruby-unit-test-${{ matrix.ruby }}-
-      - uses: ./.github/actions/setup-bazelisk
-      - uses: ./.github/actions/bazel
-        with:
-          command: test --test_output=all //rb:unit-test
+          command: test --cache_test_results=no --test_output=all //rb:unit-test

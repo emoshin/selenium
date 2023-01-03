@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Base64;
 
-public class ChromeOptionsFunctionalTest extends JupiterTestBase {
+class ChromeOptionsFunctionalTest extends JupiterTestBase {
 
   private static final String EXT_PATH = "common/extensions/webextensions-selenium-example.crx";
 
@@ -44,7 +44,7 @@ public class ChromeOptionsFunctionalTest extends JupiterTestBase {
   public void canStartChromeWithCustomOptions() {
     ChromeOptions options = new ChromeOptions();
     if (TestUtilities.isOnTravis()) {
-      options.setHeadless(true);
+      options.addArguments("--headless=chrome");
     }
     options.addArguments("user-agent=foo;bar");
     localDriver = new ChromeDriver(options);
@@ -55,7 +55,7 @@ public class ChromeOptionsFunctionalTest extends JupiterTestBase {
   }
 
   @Test
-  public void optionsStayEqualAfterSerialization() {
+  void optionsStayEqualAfterSerialization() {
     ChromeOptions options1 = new ChromeOptions();
     ChromeOptions options2 = new ChromeOptions();
     assertThat(options2).isEqualTo(options1);
@@ -68,7 +68,7 @@ public class ChromeOptionsFunctionalTest extends JupiterTestBase {
   public void canSetAcceptInsecureCerts() {
     ChromeOptions options = new ChromeOptions();
     if (TestUtilities.isOnTravis()) {
-      options.setHeadless(true);
+      options.addArguments("--headless=chrome");
     }
     options.setAcceptInsecureCerts(true);
     localDriver = new ChromeDriver(options);
@@ -81,7 +81,7 @@ public class ChromeOptionsFunctionalTest extends JupiterTestBase {
   public void canAddExtensionFromFile() {
     ChromeOptions options = new ChromeOptions();
     if (TestUtilities.isOnTravis()) {
-      options.setHeadless(true);
+      options.addArguments("--headless=chrome");
     }
     options.addExtensions(InProject.locate(EXT_PATH).toFile());
     localDriver = new ChromeDriver(options);
@@ -99,7 +99,7 @@ public class ChromeOptionsFunctionalTest extends JupiterTestBase {
   public void canAddExtensionFromStringEncodedInBase64() throws IOException {
     ChromeOptions options = new ChromeOptions();
     if (TestUtilities.isOnTravis()) {
-      options.setHeadless(true);
+      options.addArguments("--headless=chrome");
     }
     options.addEncodedExtensions(Base64.getEncoder().encodeToString(
       Files.readAllBytes(InProject.locate(EXT_PATH))));

@@ -1,3 +1,59 @@
+4.7.1 (2022-12-02)
+=========================
+Ruby:
+  * Fix bug preventing selenium manager from using Internet Explorer
+
+4.7.0 (2022-12-01)
+=========================
+BiDi:
+  * Released selenium-devtools 0.108.0 (supports CDP v85, v106, v107, v108)
+  * Fix bug with socket stability
+
+Ruby:
+  * Remove dependency on ChildProcess gem in favor of native Process.spawn (#11251)
+  * Add support for Selenium Manager to work with IE Driver
+  * Improve error handling for Selenium Manager
+
+Safari:
+  * Fix bug preventing Safari Options from being used with Safari Technology Preview
+
+4.6.1 (2022-11-04)
+=========================
+Ruby:
+  * fix bug preventing selenium-manager from being executable by default
+
+4.6.0 (2022-11-04)
+=========================
+BiDi:
+  * Released selenium-devtools 0.107.0 (supports CDP v85, v105, v106, v107)
+
+Ruby:
+  * firefox scroll by amount is only failing on mac
+  * add initial support for selenium manager
+  * Revert "[rb] do not allow Select class to work with disabled selects"
+  * Make sure selenium-manager is packed into gem
+  * Fix platform list in #scroll_by guard
+
+4.5.0 (2022-09-28)
+=========================
+
+BiDi:
+  * Released selenium-devtools 0.105.0 (supports CDP v85, v103, v104, v105)
+  * Released selenium-devtools 0.106.0 (supports CDP v85, v104, v105, v106)
+  * Add HasBiDi support to Chrome
+
+Ruby:
+  * Fix bug in Platform code
+  * Update Select class to error when elements are disabled (#10812)
+
+Firefox:
+  * Add support for installing unsigned add-ons (#10265, thanks TamsilAmani!)
+  * Change accept_insecure_certificates to true by default (to match other bindings)
+  * Set debugger_address option to true by default
+
+Server:
+  * Add support for initializing server class with arguments and log level
+
 4.4.0 (2022-08-09)
 =========================
 

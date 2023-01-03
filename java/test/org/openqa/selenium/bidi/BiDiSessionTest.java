@@ -18,7 +18,6 @@
 package org.openqa.selenium.bidi;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
@@ -27,13 +26,12 @@ import java.util.Collections;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
-public class BiDiSessionTest {
+class BiDiSessionTest {
 
   private FirefoxDriver driver;
 
-  @Disabled
   @Test
-  public void shouldBeAbleToCreateABiDiSession() {
+  void shouldBeAbleToCreateABiDiSession() {
     FirefoxOptions options = new FirefoxOptions();
     // Enable BiDi
     options.setCapability("webSocketUrl", true);

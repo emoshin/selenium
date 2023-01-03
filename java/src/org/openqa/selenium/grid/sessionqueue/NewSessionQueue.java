@@ -38,7 +38,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.openqa.selenium.remote.http.Route.combine;
@@ -105,7 +104,7 @@ public abstract class NewSessionQueue implements HasReadyState, Routable {
 
   public abstract Optional<SessionRequest> remove(RequestId reqId);
 
-  public abstract Optional<SessionRequest> getNextAvailable(Set<Capabilities> stereotypes);
+  public abstract List<SessionRequest> getNextAvailable(Map<Capabilities, Long> stereotypes);
 
   public abstract void complete(RequestId reqId, Either<SessionNotCreatedException, CreateSessionResponse> result);
 

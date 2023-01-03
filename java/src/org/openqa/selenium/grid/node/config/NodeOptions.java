@@ -71,6 +71,7 @@ public class NodeOptions {
   public static final int DEFAULT_SESSION_TIMEOUT = 300;
   public static final int DEFAULT_DRAIN_AFTER_SESSION_COUNT = 0;
   public static final boolean DEFAULT_ENABLE_CDP = true;
+  public static final boolean DEFAULT_ENABLE_BIDI = true;
   static final String NODE_SECTION = "node";
   static final boolean DEFAULT_DETECT_DRIVERS = true;
   static final boolean OVERRIDE_MAX_SESSIONS = false;
@@ -145,6 +146,10 @@ public class NodeOptions {
     } catch (URISyntaxException e) {
       throw new ConfigException("Unable to construct public URL: " + base);
     }
+  }
+
+  public Optional<String> getDownloadsPath() {
+    return config.get(NODE_SECTION, "downloads-path");
   }
 
   public Node getNode() {
@@ -236,6 +241,10 @@ public class NodeOptions {
 
   public boolean isCdpEnabled() {
     return config.getBool(NODE_SECTION, "enable-cdp").orElse(DEFAULT_ENABLE_CDP);
+  }
+
+  public boolean isBiDiEnabled() {
+    return config.getBool(NODE_SECTION, "enable-bidi").orElse(DEFAULT_ENABLE_BIDI);
   }
 
   public int getDrainAfterSessionCount() {
@@ -346,7 +355,10 @@ public class NodeOptions {
         int toIndex = (i + 1) >= configIndexes.length ? drivers.size() : configIndexes[i + 1];
         Map<String, String> configMap = new HashMap<>();
         drivers.subList(fromIndex, toIndex)
-          .forEach(keyValue -> configMap.put(keyValue.split("=")[0], keyValue.split("=")[1]));
+          .forEach(keyValue -> {
+            String [] values = keyValue.split("=", 2);
+            configMap.put(values[0], values[1]);
+          });
         driversMap.add(configMap);
       }
 
@@ -547,6 +559,11 @@ public class NodeOptions {
       @Override
       public boolean isSupportingCdp() {
         return detectedDriver.isSupportingCdp();
+      }
+
+      @Override
+      public boolean isSupportingBiDi() {
+        return  detectedDriver.isSupportingBiDi();
       }
 
       @Override

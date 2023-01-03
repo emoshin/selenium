@@ -38,8 +38,11 @@ public class InternetExplorerDriver extends RemoteWebDriver {
 
   /**
    * Capability that defines to use whether to use native or javascript events during operations.
+   *
+   * @deprecated Non W3C compliant
    */
-  public static final String NATIVE_EVENTS = CapabilityType.HAS_NATIVE_EVENTS;
+  @Deprecated
+  public static final String NATIVE_EVENTS = "nativeEvents";
 
   /**
    * Capability that defines the initial URL to be used when IE is launched.
@@ -49,7 +52,7 @@ public class InternetExplorerDriver extends RemoteWebDriver {
   /**
    * Capability that defines how elements are scrolled into view in the InternetExplorerDriver.
    */
-  public static final String ELEMENT_SCROLL_BEHAVIOR = CapabilityType.ELEMENT_SCROLL_BEHAVIOR;
+  public static final String ELEMENT_SCROLL_BEHAVIOR = "elementScrollBehavior";
 
   /**
    * Capability that defines which behaviour will be used if an unexpected Alert is found.
@@ -128,12 +131,6 @@ public class InternetExplorerDriver extends RemoteWebDriver {
    * without affecting the proxy settings of other instances of IE.
    */
   public static final String IE_USE_PER_PROCESS_PROXY = "ie.usePerProcessProxy";
-
-  /**
-   * @deprecated Use {@link #IE_USE_PER_PROCESS_PROXY} (the one without the typo);
-   */
-  @Deprecated
-  public static final String IE_USE_PRE_PROCESS_PROXY = IE_USE_PER_PROCESS_PROXY;
 
   /**
    * Capability that defines used IE CLI switches when {@link #FORCE_CREATE_PROCESS} is enabled.

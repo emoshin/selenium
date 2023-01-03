@@ -17,22 +17,26 @@
 
 import http.client as http_client
 
-
 from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
-from .service import DEFAULT_EXECUTABLE_PATH, Service
+
 from .options import Options
+from .service import DEFAULT_EXECUTABLE_PATH
+from .service import Service
 
 
 class WebDriver(RemoteWebDriver):
-    """
-    Controls the WebKitGTKDriver and allows you to drive the browser.
-    """
+    """Controls the WebKitGTKDriver and allows you to drive the browser."""
 
-    def __init__(self, executable_path=DEFAULT_EXECUTABLE_PATH,
-                 port=0, options=None, desired_capabilities=None,
-                 service_log_path=None, keep_alive=False):
-        """
-        Creates a new instance of the WebKitGTK driver.
+    def __init__(
+        self,
+        executable_path=DEFAULT_EXECUTABLE_PATH,
+        port=0,
+        options=None,
+        desired_capabilities=None,
+        service_log_path=None,
+        keep_alive=False,
+    ):
+        """Creates a new instance of the WebKitGTK driver.
 
         Starts the service and then creates new instance of WebKitGTK Driver.
 
@@ -57,16 +61,13 @@ class WebDriver(RemoteWebDriver):
         self.service.start()
 
         super().__init__(
-            command_executor=self.service.service_url,
-            desired_capabilities=desired_capabilities,
-            keep_alive=keep_alive)
+            command_executor=self.service.service_url, desired_capabilities=desired_capabilities, keep_alive=keep_alive
+        )
         self._is_remote = False
 
     def quit(self):
-        """
-        Closes the browser and shuts down the WebKitGTKDriver executable
-        that is started when starting the WebKitGTKDriver
-        """
+        """Closes the browser and shuts down the WebKitGTKDriver executable
+        that is started when starting the WebKitGTKDriver."""
         try:
             super().quit()
         except http_client.BadStatusLine:

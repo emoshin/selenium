@@ -51,11 +51,11 @@ $DEBUG = true if ENV['debug'] == 'true'
 verbose($DEBUG)
 
 def release_version
-  '4.4'
+  '4.7'
 end
 
 def version
-  "#{release_version}.0"
+  "#{release_version}.2"
 end
 
 # The build system used by webdriver is layered on top of rake, and we call it
@@ -85,7 +85,7 @@ CrazyFun::Mappings::RakeMappings.new.add_all(crazy_fun)
 
 # If it looks like a bazel target, build it with bazel
 rule /\/\/.*/ do |task|
-  task.out = Bazel.execute('build', %w[--workspace_status_command scripts/build-info.py], task.name)
+  task.out = Bazel.execute('build', %w[], task.name)
 end
 
 # Spoof tasks to get CI working with bazel
@@ -98,10 +98,10 @@ task '//java/test/org/openqa/selenium/environment/webserver:webserver:uber' => [
 JAVA_RELEASE_TARGETS = %w[
   //java/src/org/openqa/selenium/chrome:chrome.publish
   //java/src/org/openqa/selenium/chromium:chromium.publish
+  //java/src/org/openqa/selenium/devtools/v106:v106.publish
+  //java/src/org/openqa/selenium/devtools/v107:v107.publish
+  //java/src/org/openqa/selenium/devtools/v108:v108.publish
   //java/src/org/openqa/selenium/devtools/v85:v85.publish
-  //java/src/org/openqa/selenium/devtools/v103:v103.publish
-  //java/src/org/openqa/selenium/devtools/v104:v104.publish
-  //java/src/org/openqa/selenium/devtools/v105:v105.publish
   //java/src/org/openqa/selenium/edge:edge.publish
   //java/src/org/openqa/selenium/firefox:firefox.publish
   //java/src/org/openqa/selenium/grid/sessionmap/jdbc:jdbc.publish
@@ -110,6 +110,8 @@ JAVA_RELEASE_TARGETS = %w[
   //java/src/org/openqa/selenium/ie:ie.publish
   //java/src/org/openqa/selenium/json:json.publish
   //java/src/org/openqa/selenium/lift:lift.publish
+  //java/src/org/openqa/selenium/manager:manager.publish
+  //java/src/org/openqa/selenium/remote/http/jdk:jdk.publish
   //java/src/org/openqa/selenium/remote/http:http.publish
   //java/src/org/openqa/selenium/remote:remote.publish
   //java/src/org/openqa/selenium/safari:safari.publish
@@ -244,7 +246,6 @@ task test_rb: ['//rb:unit-test', :test_rb_local, :test_rb_remote]
 task test_rb_local: [
   '//rb:chrome-test',
   '//rb:firefox-test',
-  ('//rb:firefox-nightly-test' if ENV['FIREFOX_NIGHTLY_BINARY']),
   ('//rb:safari-preview-test' if SeleniumRake::Checks.mac?),
   ('//rb:safari-test' if SeleniumRake::Checks.mac?),
   ('//rb:ie-test' if SeleniumRake::Checks.windows?),
@@ -254,7 +255,6 @@ task test_rb_local: [
 task test_rb_remote: [
   '//rb:remote-chrome-test',
   '//rb:remote-firefox-test',
-  ('//rb:remote-firefox-nightly-test' if ENV['FIREFOX_NIGHTLY_BINARY']),
   ('//rb:remote-safari-test' if SeleniumRake::Checks.mac?),
   ('//rb:remote-safari-preview-test' if SeleniumRake::Checks.mac?),
   ('//rb:remote-ie-test' if SeleniumRake::Checks.windows?),
@@ -437,13 +437,16 @@ namespace :copyright do
         'javascript/selenium-core/scripts/ui-map-sample.js',
         'javascript/selenium-core/scripts/user-extensions.js',
         'javascript/selenium-core/scripts/xmlextras.js',
-        'javascript/selenium-core/xpath/**/*.js'
+        'javascript/selenium-core/xpath/**/*.js',
+        'javascript/grid-ui/node_modules/**/*.js'
       )
     )
+    Copyright.new.update(FileList['javascript/**/*.tsx'])
     Copyright.new(comment_characters: '#').update(FileList['py/**/*.py'])
     Copyright.new(comment_characters: '#', prefix: ["# frozen_string_literal: true\n", "\n"])
       .update(FileList['rb/**/*.rb'])
     Copyright.new.update(FileList['java/**/*.java'])
+    Copyright.new.update(FileList['rust/**/*.rs'])
   end
 end
 

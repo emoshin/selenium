@@ -38,8 +38,8 @@ from .exceptions import NoSuchElementException
 from .exceptions import NoSuchFrameException
 from .exceptions import NoSuchShadowRootException
 from .exceptions import NoSuchWindowException
-from .exceptions import RemoteDriverServerException
 from .exceptions import ScreenshotException
+from .exceptions import SeleniumManagerException
 from .exceptions import SessionNotCreatedException
 from .exceptions import StaleElementReferenceException
 from .exceptions import TimeoutException
@@ -49,37 +49,38 @@ from .exceptions import UnexpectedTagNameException
 from .exceptions import UnknownMethodException
 from .exceptions import WebDriverException
 
-
-__all__ = ["WebDriverException",
-           "InvalidSwitchToTargetException",
-           "NoSuchFrameException",
-           "NoSuchWindowException",
-           "NoSuchElementException",
-           "NoSuchAttributeException",
-           "NoSuchShadowRootException",
-           "StaleElementReferenceException",
-           "InvalidElementStateException",
-           "UnexpectedAlertPresentException",
-           "NoAlertPresentException",
-           "ElementNotVisibleException",
-           "ElementNotInteractableException",
-           "ElementNotSelectableException",
-           "InvalidCookieDomainException",
-           "UnableToSetCookieException",
-           "RemoteDriverServerException",
-           "TimeoutException",
-           "MoveTargetOutOfBoundsException",
-           "UnexpectedTagNameException",
-           "InvalidSelectorException",
-           "ImeNotAvailableException",
-           "ImeActivationFailedException",
-           "InvalidArgumentException",
-           "JavascriptException",
-           "NoSuchCookieException",
-           "ScreenshotException",
-           "ElementClickInterceptedException",
-           "InsecureCertificateException",
-           "InvalidCoordinatesException",
-           "InvalidSessionIdException",
-           "SessionNotCreatedException",
-           "UnknownMethodException"]
+__all__ = [
+    "WebDriverException",
+    "InvalidSwitchToTargetException",
+    "NoSuchFrameException",
+    "NoSuchWindowException",
+    "NoSuchElementException",
+    "NoSuchAttributeException",
+    "NoSuchShadowRootException",
+    "StaleElementReferenceException",
+    "InvalidElementStateException",
+    "UnexpectedAlertPresentException",
+    "NoAlertPresentException",
+    "ElementNotVisibleException",
+    "ElementNotInteractableException",
+    "ElementNotSelectableException",
+    "InvalidCookieDomainException",
+    "UnableToSetCookieException",
+    "TimeoutException",
+    "MoveTargetOutOfBoundsException",
+    "UnexpectedTagNameException",
+    "InvalidSelectorException",
+    "ImeNotAvailableException",
+    "ImeActivationFailedException",
+    "InvalidArgumentException",
+    "JavascriptException",
+    "NoSuchCookieException",
+    "ScreenshotException",
+    "ElementClickInterceptedException",
+    "InsecureCertificateException",
+    "InvalidCoordinatesException",
+    "InvalidSessionIdException",
+    "SessionNotCreatedException",
+    "UnknownMethodException",
+    "SeleniumManagerException",
+]

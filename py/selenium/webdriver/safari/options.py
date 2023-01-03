@@ -34,10 +34,10 @@ class Options(ArgOptions):
     KEY = "safari.options"
 
     # @see https://developer.apple.com/documentation/webkit/about_webdriver_for_safari
-    AUTOMATIC_INSPECTION = 'safari:automaticInspection'
-    AUTOMATIC_PROFILING = 'safari:automaticProfiling'
+    AUTOMATIC_INSPECTION = "safari:automaticInspection"
+    AUTOMATIC_PROFILING = "safari:automaticProfiling"
 
-    SAFARI_TECH_PREVIEW = 'Safari Technology Preview'
+    SAFARI_TECH_PREVIEW = "Safari Technology Preview"
 
     def __init__(self) -> None:
         super().__init__()
@@ -54,8 +54,7 @@ class Options(ArgOptions):
 
     @binary_location.setter
     def binary_location(self, value: str) -> None:
-        """
-        Allows you to set the browser binary to launch
+        """Allows you to set the browser binary to launch.
 
         :Args:
          - value : path to the browser binary
@@ -63,8 +62,7 @@ class Options(ArgOptions):
         self._binary_location = value
 
     def to_capabilities(self) -> dict:
-        """Marshals the  options to an desired capabilities object.
-        """
+        """Marshals the  options to an desired capabilities object."""
         # This intentionally looks at the internal properties
         # so if a binary or profile has _not_ been set,
         # it will defer to geckodriver to find the system Firefox
@@ -89,48 +87,43 @@ class Options(ArgOptions):
 
     @property
     def automatic_inspection(self) -> bool:
-        """:Returns: The option Automatic Inspection value """
+        """:Returns: The option Automatic Inspection value"""
         return self._caps.get(self.AUTOMATIC_INSPECTION)
 
     @automatic_inspection.setter
     def automatic_inspection(self, value: bool) -> None:
-        """
-        Sets the option Automatic Inspection to value
+        """Sets the option Automatic Inspection to value.
 
         :Args:
          - value: boolean value
-
         """
         self.set_capability(self.AUTOMATIC_INSPECTION, value)
 
     @property
     def automatic_profiling(self) -> bool:
-        """:Returns: The options Automatic Profiling value """
+        """:Returns: The options Automatic Profiling value"""
         return self._caps.get(self.AUTOMATIC_PROFILING)
 
     @automatic_profiling.setter
     def automatic_profiling(self, value: bool) -> None:
-        """
-        Sets the option Automatic Profiling to value
+        """Sets the option Automatic Profiling to value.
 
         :Args:
          - value: boolean value
-
         """
         self.set_capability(self.AUTOMATIC_PROFILING, value)
 
     @property
     def use_technology_preview(self) -> bool:
         """:Returns: whether BROWSER_NAME is equal to Safari Technology Preview"""
-        return self._caps.get('browserName') == self.SAFARI_TECH_PREVIEW
+        return self._caps.get("browserName") == self.SAFARI_TECH_PREVIEW
 
     @use_technology_preview.setter
     def use_technology_preview(self, value: bool) -> None:
-        """
-        Sets browser name to Safari Technology Preview if value else to safari.
+        """Sets browser name to Safari Technology Preview if value else to
+        safari.
 
         :Args:
          - value: boolean value
-
         """
-        self.set_capability('browserName', self.SAFARI_TECH_PREVIEW if value else 'safari')
+        self.set_capability("browserName", self.SAFARI_TECH_PREVIEW if value else "safari")

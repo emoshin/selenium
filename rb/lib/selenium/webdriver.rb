@@ -17,7 +17,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require 'childprocess'
 require 'tmpdir'
 require 'fileutils'
 require 'date'
@@ -34,9 +33,9 @@ module Selenium
     Point     = Struct.new(:x, :y)
     Dimension = Struct.new(:width, :height)
     Rectangle = Struct.new(:x, :y, :width, :height)
-    Location  = Struct.new(:latitude, :longitude, :altitude)
 
     autoload :BiDi,       'selenium/webdriver/bidi'
+    autoload :Chromium,   'selenium/webdriver/chromium'
     autoload :Chrome,     'selenium/webdriver/chrome'
     autoload :DevTools,   'selenium/webdriver/devtools'
     autoload :Edge,       'selenium/webdriver/edge'
