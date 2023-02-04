@@ -91,13 +91,12 @@ module Selenium
         end
 
         describe '#logs' do
-          before(:all) do
+          before do
             reset_driver!(logging_prefs: {browser: 'ALL',
                                           driver: 'ALL',
                                           performance: 'ALL'})
+            driver.navigate.to url_for('errors.html')
           end
-
-          before { driver.navigate.to url_for('errors.html') }
 
           after(:all) { reset_driver! }
 
@@ -157,7 +156,9 @@ module Selenium
                                       'callback(navigator.permissions.query({name: arguments[0]}));', name)['state']
         end
 
-        it 'can set single permissions' do
+        it 'can set single permissions', except: {
+          browser: :chrome, reason: 'https://bugs.chromium.org/p/chromedriver/issues/detail?id=4335'
+        } do
           driver.navigate.to url_for('xhtmlTest.html')
 
           expect(get_permission('clipboard-read')).to eq('prompt')
@@ -172,7 +173,9 @@ module Selenium
           reset_driver!
         end
 
-        it 'can set multiple permissions' do
+        it 'can set multiple permissions', except: {
+          browser: :chrome, reason: 'https://bugs.chromium.org/p/chromedriver/issues/detail?id=4335'
+        } do
           driver.navigate.to url_for('xhtmlTest.html')
 
           expect(get_permission('clipboard-read')).to eq('prompt')
