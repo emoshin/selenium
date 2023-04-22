@@ -41,6 +41,8 @@ import static org.openqa.selenium.remote.Browser.CHROME;
  */
 public class ChromeDriverService extends DriverService {
 
+  public static final String CHROME_DRIVER_NAME = "chromedriver";
+
   /**
    * System property that defines the location of the ChromeDriver executable that will be used by
    * the {@link #createDefaultService() default service}.
@@ -135,11 +137,24 @@ public class ChromeDriverService extends DriverService {
       unmodifiableMap(new HashMap<>(environment)));
   }
 
+  public String getDriverName() {
+    return CHROME_DRIVER_NAME;
+  }
+
+  public String getDriverProperty() {
+    return CHROME_DRIVER_EXE_PROPERTY;
+  }
+
+  @Override
+  public Capabilities getDefaultDriverOptions() {
+    return new ChromeOptions();
+  }
+
   /**
    * Configures and returns a new {@link ChromeDriverService} using the default configuration. In
-   * this configuration, the service will use the ChromeDriver executable identified by the
-   * {@link #CHROME_DRIVER_EXE_PROPERTY} system property. Each service created by this method will
-   * be configured to use a free port on the current system.
+   * this configuration, the service will use the ChromeDriver executable identified by
+   * {@link org.openqa.selenium.remote.service.DriverFinder#getPath(DriverService, Capabilities)}.
+   * Each service created by this method will be configured to use a free port on the current system.
    *
    * @return A new ChromeDriverService using the default configuration.
    */
@@ -149,9 +164,9 @@ public class ChromeDriverService extends DriverService {
 
   /**
    * Configures and returns a new {@link ChromeDriverService} using the supplied configuration. In
-   * this configuration, the service will use the ChromeDriver executable identified by the
-   * {@link #CHROME_DRIVER_EXE_PROPERTY} system property. Each service created by this method will
-   * be configured to use a free port on the current system.
+   * this configuration, the service will use the ChromeDriver executable identified by
+   * {@link org.openqa.selenium.remote.service.DriverFinder#getPath(DriverService, Capabilities)}.
+   * Each service created by this method will be configured to use a free port on the current system.
    *
    * @return A new ChromeDriverService using the supplied configuration from {@link ChromeOptions}.
    * @deprecated Use {@link Builder#withLogLevel(ChromiumDriverLogLevel)}  }
@@ -159,10 +174,21 @@ public class ChromeDriverService extends DriverService {
   @Deprecated
   public static ChromeDriverService createServiceWithConfig(ChromeOptions options) {
     ChromeDriverLogLevel oldLevel = options.getLogLevel();
-    ChromiumDriverLogLevel level = (oldLevel == null) ? null : ChromiumDriverLogLevel.fromString(oldLevel.toString());
+    ChromiumDriverLogLevel level = (oldLevel == null) ? null :
+                                   ChromiumDriverLogLevel.fromString(oldLevel.toString());
     return new Builder()
       .withLogLevel(level)
       .build();
+  }
+
+  /**
+   * Checks if the browser driver binary is already present. Grid uses this method to show
+   * the available browsers and drivers, hence its visibility.
+   *
+   * @return Whether the browser driver path was found.
+   */
+  static boolean isPresent() {
+    return findExePath(CHROME_DRIVER_NAME, CHROME_DRIVER_EXE_PROPERTY) != null;
   }
 
   /**
@@ -170,7 +196,7 @@ public class ChromeDriverService extends DriverService {
    */
   @AutoService(DriverService.Builder.class)
   public static class Builder extends DriverService.Builder<
-      ChromeDriverService, ChromeDriverService.Builder> {
+    ChromeDriverService, ChromeDriverService.Builder> {
 
     private boolean disableBuildCheck = Boolean.getBoolean(CHROME_DRIVER_DISABLE_BUILD_CHECK);
     private boolean readableTimestamp = Boolean.getBoolean(CHROME_DRIVER_READABLE_TIMESTAMP);
@@ -178,8 +204,10 @@ public class ChromeDriverService extends DriverService {
     private boolean verbose = Boolean.getBoolean(CHROME_DRIVER_VERBOSE_LOG_PROPERTY);
     private boolean silent = Boolean.getBoolean(CHROME_DRIVER_SILENT_OUTPUT_PROPERTY);
     private String allowedListIps = System.getProperty(CHROME_DRIVER_ALLOWED_IPS_PROPERTY,
-      System.getProperty(CHROME_DRIVER_WHITELISTED_IPS_PROPERTY));
-    private ChromiumDriverLogLevel logLevel = ChromiumDriverLogLevel.fromString(System.getProperty(CHROME_DRIVER_LOG_LEVEL_PROPERTY));
+                                                       System.getProperty(
+                                                         CHROME_DRIVER_WHITELISTED_IPS_PROPERTY));
+    private ChromiumDriverLogLevel logLevel = ChromiumDriverLogLevel
+      .fromString(System.getProperty(CHROME_DRIVER_LOG_LEVEL_PROPERTY));
 
     @Override
     public int score(Capabilities capabilities) {
@@ -308,14 +336,6 @@ public class ChromeDriverService extends DriverService {
     public Builder withReadableTimestamp(Boolean readableTimestamp) {
       this.readableTimestamp = readableTimestamp;
       return this;
-    }
-
-    @Override
-    protected File findDefaultExecutable() {
-      return findExecutable(
-        "chromedriver", CHROME_DRIVER_EXE_PROPERTY,
-        "https://chromedriver.chromium.org/",
-        "https://chromedriver.chromium.org/downloads");
     }
 
     @Override

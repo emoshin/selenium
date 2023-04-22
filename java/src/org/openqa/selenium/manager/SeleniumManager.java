@@ -16,11 +16,13 @@
 // under the License.
 package org.openqa.selenium.manager;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.io.CharStreams;
+
 import org.openqa.selenium.Beta;
+import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.Platform;
 import org.openqa.selenium.WebDriverException;
+import org.openqa.selenium.json.Json;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,7 +31,10 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -38,7 +43,7 @@ import static org.openqa.selenium.Platform.WINDOWS;
 
 /**
  * This implementation is still in beta, and may change.
- *
+ * <p>
  * The Selenium-Manager binaries are distributed in a JAR file (org.openqa.selenium:selenium-manager) for
  * the Java binding language. Since these binaries are compressed within these JAR, we need to serialize
  * the proper binary for the current platform (Windows, macOS, or Linux) as an executable file. To
@@ -53,15 +58,15 @@ public class SeleniumManager {
 
     private static final String SELENIUM_MANAGER = "selenium-manager";
     private static final String EXE = ".exe";
-    private static final String INFO = "INFO\t";
+    private static final String WARN = "WARN";
 
     private static SeleniumManager manager;
 
     private File binary;
 
-  /**
-   * Wrapper for the Selenium Manager binary.
-   */
+    /**
+     * Wrapper for the Selenium Manager binary.
+     */
     private SeleniumManager() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             if (binary != null && binary.exists()) {
@@ -82,11 +87,12 @@ public class SeleniumManager {
         return manager;
     }
 
-  /**
-   * Executes a process with the given arguments.
-   * @param command the file and arguments to execute.
-   * @return the standard output of the execution.
-   */
+    /**
+     * Executes a process with the given arguments.
+     *
+     * @param command the file and arguments to execute.
+     * @return the standard output of the execution.
+     */
     private static String runCommand(String... command) {
         String output = "";
         int code = 0;
@@ -96,28 +102,35 @@ public class SeleniumManager {
             process.waitFor();
             code = process.exitValue();
             output = CharStreams.toString(new InputStreamReader(
-                    process.getInputStream(), StandardCharsets.UTF_8));
+              process.getInputStream(), StandardCharsets.UTF_8));
         } catch (InterruptedException e) {
             LOG.warning(String.format("Interrupted exception running command %s: %s",
-                    Arrays.toString(command), e.getMessage()));
+                                      Arrays.toString(command), e.getMessage()));
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             LOG.warning(String.format("%s running command %s: %s",
-                    e.getClass().getSimpleName(), Arrays.toString(command), e.getMessage()));
+                                      e.getClass().getSimpleName(), Arrays.toString(command),
+                                      e.getMessage()));
         }
+        SeleniumManagerJsonOutput jsonOutput = new Json()
+          .toType(output, SeleniumManagerJsonOutput.class);
         if (code > 0) {
-          throw new WebDriverException("Unsuccessful command executed: " + Arrays.toString(command) +
-                                        "\n" + output);
+            throw new WebDriverException(
+              "Unsuccessful command executed: " + Arrays.toString(command) +
+              "\n" + jsonOutput.result.message);
         }
-
-        return output.replace(INFO, "").trim();
+        jsonOutput.logs.stream()
+          .filter(log -> log.level.equalsIgnoreCase(WARN))
+          .forEach(log -> LOG.warning(log.message));
+        return jsonOutput.result.message;
     }
 
-  /**
-   * Determines the correct Selenium Manager binary to use.
-   * @return the path to the Selenium Manager binary.
-   */
-    private File getBinary() {
+    /**
+     * Determines the correct Selenium Manager binary to use.
+     *
+     * @return the path to the Selenium Manager binary.
+     */
+    private synchronized File getBinary() {
         if (binary == null) {
             try {
                 Platform current = Platform.getCurrent();
@@ -145,22 +158,53 @@ public class SeleniumManager {
         return binary;
     }
 
-  /**
-   * Determines the location of the correct driver.
-   * @param driverName which driver the service needs.
-   * @return the location of the driver.
-   */
-    public String getDriverPath(String driverName) {
-        if (!ImmutableList.of("geckodriver", "chromedriver", "msedgedriver", "IEDriverServer").contains(driverName)) {
-            throw new WebDriverException("Unable to locate driver with name: " + driverName);
+    /**
+     * Returns the browser binary path when present in the vendor options
+     *
+     * @param options browser options used to start the session
+     * @return the browser binary path when present, only Chrome/Firefox/Edge
+     */
+    private String getBrowserBinary(Capabilities options) {
+        List<String> vendorOptionsCapabilities = Arrays.asList("moz:firefoxOptions", "goog:chromeOptions", "ms:edgeOptions");
+        for (String vendorOptionsCapability : vendorOptionsCapabilities) {
+            if (options.asMap().containsKey(vendorOptionsCapability)) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> vendorOptions = (Map<String, Object>) options.getCapability(vendorOptionsCapability);
+                    return (String) vendorOptions.get("binary");
+                } catch (Exception e) {
+                    LOG.warning(String.format("Exception while retrieving the browser binary path. %s: %s",
+                                              options, e.getMessage()));
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Determines the location of the correct driver.
+     * @param options Browser Options instance.
+     * @return the location of the driver.
+     */
+    public String getDriverPath(Capabilities options) {
+        File binaryFile = getBinary();
+        if (binaryFile == null) {
+            return null;
+        }
+        List<String> commandList = new ArrayList<>(
+          Arrays.asList(binaryFile.getAbsolutePath(),
+                        "--browser",
+                        options.getBrowserName(),
+                        "--output", "json"));
+        if (!options.getBrowserVersion().isEmpty()) {
+            commandList.addAll(Arrays.asList("--browser-version", options.getBrowserVersion()));
         }
 
-        String driverPath = null;
-        File binaryFile = getBinary();
-        if (binaryFile != null) {
-          driverPath = runCommand(binaryFile.getAbsolutePath(),
-                    "--driver", driverName.replaceAll(EXE, ""));
+        String browserBinary = getBrowserBinary(options);
+        if (browserBinary != null && !browserBinary.isEmpty()) {
+            commandList.addAll(Arrays.asList("--browser-path", browserBinary));
         }
-        return driverPath;
+
+        return runCommand(commandList.toArray(new String[0]));
     }
 }

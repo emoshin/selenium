@@ -29,7 +29,39 @@ module Selenium
         expect(driver.title).to eq('XHTML Test Page')
       end
 
-      it 'supports events' do
+      it 'maps methods to classes' do
+        expect(driver.devtools.css).not_to be_nil
+        expect(driver.devtools.dom).not_to be_nil
+        expect(driver.devtools.dom_debugger).not_to be_nil
+      end
+
+      context 'when the devtools version is too high' do
+        let(:existing_devtools_version) { driver.send(:devtools_version) }
+        let(:imaginary_devtools_version) { existing_devtools_version + 1 }
+
+        before do
+          # set the devtools version to a newer one than exists
+          allow(driver).to receive(:devtools_version).and_return(imaginary_devtools_version)
+
+          # forget what the actual version was
+          Selenium::DevTools.remove_instance_variable(:@version)
+        end
+
+        it 'can fall back to an older devtools if necessary' do
+          expect { driver.devtools }
+            .to output(
+              a_string_matching(
+                /
+                  Could\ not\ load\ selenium-devtools\ v#{imaginary_devtools_version}.\ Trying\ older\ versions.\n
+                  Using\ selenium-devtools\ version\ v\d+,\ some\ features\ may\ not\ work\ as\ expected.\n
+                /x
+              )
+            ).to_stderr
+        end
+      end
+
+      it 'supports events', except: {browser: :firefox,
+                                     reason: 'https://bugzilla.mozilla.org/show_bug.cgi?id=1819965'} do
         expect { |block|
           driver.devtools.page.enable
           driver.devtools.page.on(:load_event_fired, &block)
@@ -38,7 +70,8 @@ module Selenium
         }.to yield_control
       end
 
-      it 'propagates errors in events' do
+      it 'propagates errors in events', except: {browser: :firefox,
+                                                 reason: 'https://bugzilla.mozilla.org/show_bug.cgi?id=1819965'} do
         expect {
           driver.devtools.page.enable
           driver.devtools.page.on(:load_event_fired) { raise 'This is fine!' }
@@ -71,7 +104,8 @@ module Selenium
         end
       end
 
-      it 'notifies about log messages' do
+      it 'notifies about log messages', except: {browser: :firefox,
+                                                 reason: 'https://bugzilla.mozilla.org/show_bug.cgi?id=1819965'} do
         logs = []
         driver.on_log_event(:console) { |log| logs.push(log) }
         driver.navigate.to url_for('javascriptPage.html')
@@ -109,8 +143,8 @@ module Selenium
         )
       end
 
-      it 'notifies about document log messages', only: {browser: :firefox,
-                                                        reason: 'Firefox & Chrome parse document differently'} do
+      it 'notifies about document log messages',
+         except: {browser: %i[chrome edge firefox], reason: 'https://bugzilla.mozilla.org/show_bug.cgi?id=1819965'} do
         logs = []
         driver.on_log_event(:console) { |log| logs.push(log) }
         driver.navigate.to url_for('javascriptPage.html')
@@ -123,7 +157,8 @@ module Selenium
         )
       end
 
-      it 'notifies about exceptions' do
+      it 'notifies about exceptions', except: {browser: :firefox,
+                                               reason: 'https://bugzilla.mozilla.org/show_bug.cgi?id=1819965'} do
         exceptions = []
         driver.on_log_event(:exception) { |exception| exceptions.push(exception) }
         driver.navigate.to url_for('javascriptPage.html')
@@ -172,6 +207,7 @@ module Selenium
               uri.path = '/devtools_request_interception_test/two.js'
               request.url = uri.to_s
             end
+            request.post_data = {foo: 'bar'}.to_json
             continue.call(request)
           end
           driver.navigate.to url_for('devToolsRequestInterceptionTest.html')

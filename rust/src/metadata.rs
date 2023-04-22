@@ -17,6 +17,7 @@
 
 use std::fs;
 use std::fs::File;
+
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,8 +27,6 @@ use crate::files::get_cache_folder;
 use crate::Logger;
 
 const METADATA_FILE: &str = "selenium-manager.json";
-const TTL_BROWSERS_SEC: u64 = 0;
-const TTL_DRIVERS_SEC: u64 = 86400;
 
 #[derive(Serialize, Deserialize)]
 pub struct Browser {
@@ -70,7 +69,7 @@ fn new_metadata(log: &Logger) -> Metadata {
 }
 
 pub fn get_metadata(log: &Logger) -> Metadata {
-    let metadata_path = get_cache_folder().join(METADATA_FILE);
+    let metadata_path = get_metadata_path();
     log.trace(format!("Reading metadata from {}", metadata_path.display()));
 
     if metadata_path.exists() {
@@ -121,11 +120,15 @@ pub fn get_driver_version_from_metadata(
     }
 }
 
-pub fn create_browser_metadata(browser_name: &str, browser_version: &String) -> Browser {
+pub fn create_browser_metadata(
+    browser_name: &str,
+    browser_version: &String,
+    browser_ttl: u64,
+) -> Browser {
     Browser {
         browser_name: browser_name.to_string(),
         browser_version: browser_version.to_string(),
-        browser_ttl: now_unix_timestamp() + TTL_BROWSERS_SEC,
+        browser_ttl: now_unix_timestamp() + browser_ttl,
     }
 }
 
@@ -133,12 +136,13 @@ pub fn create_driver_metadata(
     browser_version: &str,
     driver_name: &str,
     driver_version: &str,
+    driver_ttl: u64,
 ) -> Driver {
     Driver {
         browser_version: browser_version.to_string(),
         driver_name: driver_name.to_string(),
         driver_version: driver_version.to_string(),
-        driver_ttl: now_unix_timestamp() + TTL_DRIVERS_SEC,
+        driver_ttl: now_unix_timestamp() + driver_ttl,
     }
 }
 
@@ -150,4 +154,15 @@ pub fn write_metadata(metadata: &Metadata, log: &Logger) {
         serde_json::to_string_pretty(metadata).unwrap(),
     )
     .unwrap();
+}
+
+pub fn clear_metadata(log: &Logger) {
+    let metadata_path = get_metadata_path();
+    log.debug(format!(
+        "Deleting metadata file {}",
+        metadata_path.display()
+    ));
+    fs::remove_file(metadata_path).unwrap_or_else(|err| {
+        log.warn(format!("Error deleting metadata file: {}", err));
+    });
 }

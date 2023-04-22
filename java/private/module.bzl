@@ -169,7 +169,7 @@ def _java_module_impl(ctx):
     )
 
     return [
-        DefaultInfo(files = depset([module_jar, src_jar])),
+        DefaultInfo(files = depset([module_jar])),
         JavaModuleInfo(
             name = name,
             module_path = depset(direct = [module_jar], transitive = [info.module_path for info in all_infos]),
@@ -232,7 +232,7 @@ java_module = rule(
             default = "@bazel_tools//tools/jdk:current_java_toolchain",
         ),
         "_merge_jars": attr.label(
-            default = "@rules_jvm_external//private/tools/java/rules/jvm/external/jar:MergeJars",
+            default = "@rules_jvm_external//private/tools/java/com/github/bazelbuild/rules_jvm_external/jar:MergeJars",
             executable = True,
             cfg = "exec",
         ),

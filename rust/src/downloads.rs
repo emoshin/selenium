@@ -65,18 +65,30 @@ pub async fn download_driver_to_tmp_folder(
     Ok((tmp_dir, target_path))
 }
 
+pub fn read_version_from_link(
+    http_client: &Client,
+    url: String,
+    log: &Logger,
+) -> Result<String, Box<dyn Error>> {
+    parse_version(read_content_from_link(http_client, url)?, log)
+}
+
 #[tokio::main]
 pub async fn read_content_from_link(
     http_client: &Client,
     url: String,
 ) -> Result<String, Box<dyn Error>> {
-    parse_version(http_client.get(url).send().await?.text().await?)
+    Ok(http_client.get(url).send().await?.text().await?)
 }
 
 #[tokio::main]
 pub async fn read_redirect_from_link(
     http_client: &Client,
     url: String,
+    log: &Logger,
 ) -> Result<String, Box<dyn Error>> {
-    parse_version(http_client.get(&url).send().await?.url().path().to_string())
+    parse_version(
+        http_client.get(&url).send().await?.url().path().to_string(),
+        log,
+    )
 }

@@ -69,8 +69,8 @@ module Selenium
       #
 
       def initialize(bridge: nil, listener: nil, **opts)
-        @service_manager = nil
         @devtools = nil
+        @bidi = nil
         bridge ||= create_bridge(**opts)
         add_extensions(bridge.browser)
         @bridge = listener ? Support::EventFiringBridge.new(bridge, listener) : bridge
@@ -174,6 +174,7 @@ module Selenium
       ensure
         @service_manager&.stop
         @devtools&.close
+        @bidi&.close
       end
 
       #
@@ -181,7 +182,10 @@ module Selenium
       #
 
       def close
-        bridge.close
+        # If no top-level browsing contexts are open after calling close,
+        # it indicates that the WebDriver session is closed.
+        # If the WebDriver session is closed, the BiDi session also needs to be closed.
+        bridge.close.tap { |handles| @bidi&.close if handles&.empty? }
       end
 
       #
@@ -312,24 +316,6 @@ module Selenium
         Remote::Bridge.new(http_client: http_client, url: url).tap do |bridge|
           bridge.create_session(caps)
         end
-      end
-
-      def process_options(options, capabilities)
-        if options && capabilities
-          msg = "Don't use both :options and :capabilities when initializing #{self.class}, prefer :options"
-          raise ArgumentError, msg
-        end
-
-        options ? options.as_json : deprecate_capabilities(capabilities)
-      end
-
-      def deprecate_capabilities(capabilities)
-        unless is_a?(Remote::Driver)
-          WebDriver.logger.deprecate("The :capabilities parameter for #{self.class}",
-                                     ":options argument with an instance of #{self.class}",
-                                     id: :capabilities)
-        end
-        generate_capabilities(capabilities)
       end
 
       def generate_capabilities(capabilities)

@@ -194,7 +194,7 @@ public class SessionCapabilitiesMutatorTest {
 
     assertThat(modifiedCapabilities)
       .extractingByKey("ms:edgeOptions").asInstanceOf(MAP)
-      .extractingByKey("binary").isNull();
+      .extractingByKey("binary").isEqualTo("/path/to/binary");
   }
 
   @Test
@@ -288,5 +288,20 @@ public class SessionCapabilitiesMutatorTest {
     assertThat(modifiedCapabilities.get("browserName")).isEqualTo("chrome");
     assertThat(modifiedCapabilities.get("unhandledPromptBehavior")).isEqualTo("accept");
     assertThat(modifiedCapabilities.get("pageLoadStrategy")).isEqualTo("normal");
+  }
+
+  @Test
+  void shouldAllowUnknownBrowserNames() {
+    stereotype = new ImmutableCapabilities(
+            "browserName", "safari");
+
+    sessionCapabilitiesMutator = new SessionCapabilitiesMutator(stereotype);
+
+    capabilities = new ImmutableCapabilities(
+            "browserName", "safari");
+
+    Map<String, Object> modifiedCapabilities = sessionCapabilitiesMutator.apply(capabilities).asMap();
+
+    assertThat(modifiedCapabilities.get("browserName")).isEqualTo("safari");
   }
 }

@@ -51,7 +51,7 @@ $DEBUG = true if ENV['debug'] == 'true'
 verbose($DEBUG)
 
 def release_version
-  '4.8'
+  '4.9'
 end
 
 def version
@@ -98,14 +98,16 @@ task '//java/test/org/openqa/selenium/environment/webserver:webserver:uber' => [
 JAVA_RELEASE_TARGETS = %w[
   //java/src/org/openqa/selenium/chrome:chrome.publish
   //java/src/org/openqa/selenium/chromium:chromium.publish
-  //java/src/org/openqa/selenium/devtools/v107:v107.publish
-  //java/src/org/openqa/selenium/devtools/v108:v108.publish
-  //java/src/org/openqa/selenium/devtools/v109:v109.publish
+  //java/src/org/openqa/selenium/devtools/v110:v110.publish
+  //java/src/org/openqa/selenium/devtools/v111:v111.publish
+  //java/src/org/openqa/selenium/devtools/v112:v112.publish
   //java/src/org/openqa/selenium/devtools/v85:v85.publish
   //java/src/org/openqa/selenium/edge:edge.publish
   //java/src/org/openqa/selenium/firefox:firefox.publish
   //java/src/org/openqa/selenium/grid/sessionmap/jdbc:jdbc.publish
   //java/src/org/openqa/selenium/grid/sessionmap/redis:redis.publish
+  //java/src/org/openqa/selenium/grid:bom-dependencies.publish
+  //java/src/org/openqa/selenium/grid:bom.publish
   //java/src/org/openqa/selenium/grid:grid.publish
   //java/src/org/openqa/selenium/ie:ie.publish
   //java/src/org/openqa/selenium/json:json.publish

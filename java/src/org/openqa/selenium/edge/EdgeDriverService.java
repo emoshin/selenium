@@ -41,6 +41,8 @@ import static org.openqa.selenium.remote.Browser.EDGE;
  */
 public class EdgeDriverService extends DriverService {
 
+  public static final String EDGE_DRIVER_NAME = "msedgedriver";
+
   /**
    * System property that defines the location of the MSEdgeDriver executable that will be used by
    * the default service.
@@ -110,11 +112,24 @@ public class EdgeDriverService extends DriverService {
           unmodifiableMap(new HashMap<>(environment)));
   }
 
+  public String getDriverName() {
+    return EDGE_DRIVER_NAME;
+  }
+
+  public String getDriverProperty() {
+    return EDGE_DRIVER_EXE_PROPERTY;
+  }
+
+  @Override
+  public Capabilities getDefaultDriverOptions() {
+    return new EdgeOptions();
+  }
+
   /**
    * Configures and returns a new {@link EdgeDriverService} using the default configuration. In
    * this configuration, the service will use the MSEdgeDriver executable identified by the
-   * {@link #EDGE_DRIVER_EXE_PROPERTY} system property. Each service created by this method will
-   * be configured to use a free port on the current system.
+   * {@link org.openqa.selenium.remote.service.DriverFinder#getPath(DriverService, Capabilities)}.
+   * Each service created by this method will be configured to use a free port on the current system.
    *
    * @return A new ChromiumEdgeDriverService using the default configuration.
    */
@@ -123,17 +138,28 @@ public class EdgeDriverService extends DriverService {
   }
 
   /**
+   * Checks if the browser driver binary is already present. Grid uses this method to show
+   * the available browsers and drivers, hence its visibility.
+   *
+   * @return Whether the browser driver path was found.
+   */
+  static boolean isPresent() {
+    return findExePath(EDGE_DRIVER_NAME, EDGE_DRIVER_EXE_PROPERTY) != null;
+  }
+
+
+  /**
    * Builder used to configure new {@link EdgeDriverService} instances.
    */
   @AutoService(DriverService.Builder.class)
-  public static class Builder extends DriverService.Builder<
-    EdgeDriverService, Builder> {
+  public static class Builder extends DriverService.Builder<EdgeDriverService, Builder> {
 
     private boolean disableBuildCheck = Boolean.getBoolean(EDGE_DRIVER_DISABLE_BUILD_CHECK);
     private boolean readableTimestamp = Boolean.getBoolean(EDGE_DRIVER_READABLE_TIMESTAMP);
     private boolean appendLog = Boolean.getBoolean(EDGE_DRIVER_APPEND_LOG_PROPERTY);
     private boolean verbose = Boolean.getBoolean(EDGE_DRIVER_VERBOSE_LOG_PROPERTY);
-    private ChromiumDriverLogLevel logLevel = ChromiumDriverLogLevel.fromString(System.getProperty(EDGE_DRIVER_LOG_LEVEL_PROPERTY));
+    private ChromiumDriverLogLevel logLevel = ChromiumDriverLogLevel
+      .fromString(System.getProperty(EDGE_DRIVER_LOG_LEVEL_PROPERTY));
     private boolean silent = Boolean.getBoolean(EDGE_DRIVER_SILENT_OUTPUT_PROPERTY);
     private String allowedListIps = System.getProperty(EDGE_DRIVER_ALLOWED_IPS_PROPERTY);
 
@@ -250,14 +276,6 @@ public class EdgeDriverService extends DriverService {
     public Builder withReadableTimestamp(Boolean readableTimestamp) {
       this.readableTimestamp = readableTimestamp;
       return this;
-    }
-
-    @Override
-    protected File findDefaultExecutable() {
-      return findExecutable(
-        "msedgedriver", EDGE_DRIVER_EXE_PROPERTY,
-        "https://docs.microsoft.com/en-us/microsoft-edge/webdriver-chromium/",
-        "https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/");
     }
 
     @Override
