@@ -49,6 +49,7 @@ default_python_version = "3.8"
 python_register_multi_toolchains(
     name = "python",
     default_version = default_python_version,
+    ignore_root_user_error = True,
     python_versions = [
         "3.8",
         "3.9",
@@ -322,9 +323,9 @@ pin_browsers()
 
 http_archive(
     name = "rules_ruby",
-    sha256 = "5228950029d57476a4903db35cd8ce6a4526e30fba08a01af9d7a9b8ebaf63ae",
-    strip_prefix = "rules_ruby-9e6e07ed5d7e02f8bb1c77ce543072d5548bbd86",
-    url = "https://github.com/p0deje/rules_ruby/archive/9e6e07ed5d7e02f8bb1c77ce543072d5548bbd86.zip",
+    sha256 = "e0f83095d484b7585ee16ac83d1fb90315a1f177ab244629eab3c2e40473574e",
+    strip_prefix = "rules_ruby-e5088fb04e8afc397b62ef08552409f8ff98b520",
+    url = "https://github.com/p0deje/rules_ruby/archive/e5088fb04e8afc397b62ef08552409f8ff98b520.zip",
 )
 
 load("//rb:ruby_version.bzl", "RUBY_VERSION")
