@@ -37,6 +37,34 @@ class BrowsingContextInspector {
     )
   }
 
+  async onNavigationStarted(callback) {
+    await this.subscribeAndHandleEvent(
+      'browsingContext.navigationStarted',
+      callback
+    )
+  }
+
+  async onFragmentNavigated(callback) {
+    await this.subscribeAndHandleEvent(
+      'browsingContext.fragmentNavigated',
+      callback
+    )
+  }
+
+  async onUserPromptClosed(callback) {
+    await this.subscribeAndHandleEvent(
+      'browsingContext.userPromptClosed',
+      callback
+    )
+  }
+
+  async onUserPromptOpened(callback) {
+    await this.subscribeAndHandleEvent(
+      'browsingContext.userPromptOpened',
+      callback
+    )
+  }
+
   async onDomContentLoaded(callback) {
     await this.subscribeAndHandleEvent(
       'browsingContext.domContentLoaded',
@@ -54,7 +82,7 @@ class BrowsingContextInspector {
     } else {
       await this.bidi.subscribe(eventType)
     }
-    this._on(callback)
+    await this._on(callback)
   }
 
   async _on(callback) {

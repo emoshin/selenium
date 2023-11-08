@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.Authenticator;
+import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
 import java.net.ProtocolException;
 import java.net.Proxy;
@@ -29,11 +30,13 @@ import java.net.ProxySelector;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.http.HttpClient.Version;
 import java.net.http.HttpResponse.BodyHandler;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.net.http.HttpTimeoutException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
@@ -46,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.net.ssl.SSLContext;
 import org.openqa.selenium.Credentials;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.UsernameAndPassword;
@@ -53,8 +57,10 @@ import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.remote.http.BinaryMessage;
 import org.openqa.selenium.remote.http.ClientConfig;
 import org.openqa.selenium.remote.http.CloseMessage;
+import org.openqa.selenium.remote.http.ConnectionFailedException;
 import org.openqa.selenium.remote.http.HttpClient;
 import org.openqa.selenium.remote.http.HttpClientName;
+import org.openqa.selenium.remote.http.HttpHandler;
 import org.openqa.selenium.remote.http.HttpMethod;
 import org.openqa.selenium.remote.http.HttpRequest;
 import org.openqa.selenium.remote.http.HttpResponse;
@@ -65,8 +71,9 @@ import org.openqa.selenium.remote.http.WebSocket;
 public class JdkHttpClient implements HttpClient {
   public static final Logger LOG = Logger.getLogger(JdkHttpClient.class.getName());
   private final JdkHttpMessages messages;
+  private final HttpHandler handler;
   private java.net.http.HttpClient client;
-  private WebSocket websocket;
+  private final List<WebSocket> websockets;
   private final ExecutorService executorService;
   private final Duration readTimeout;
 
@@ -75,6 +82,8 @@ public class JdkHttpClient implements HttpClient {
 
     this.messages = new JdkHttpMessages(config);
     this.readTimeout = config.readTimeout();
+    this.websockets = new ArrayList<>();
+    this.handler = config.filter().andFinally(this::execute0);
 
     executorService = Executors.newCachedThreadPool();
 
@@ -115,27 +124,43 @@ public class JdkHttpClient implements HttpClient {
       builder = builder.authenticator(authenticator);
     }
 
-    Proxy proxy = config.proxy();
-    if (proxy != null) {
-      ProxySelector proxySelector =
-          new ProxySelector() {
-            @Override
-            public List<Proxy> select(URI uri) {
-              if (proxy == null) {
-                return List.of();
-              }
-              if (uri.getScheme().toLowerCase().startsWith("http")) {
-                return List.of(proxy);
-              }
+    String proxyHost = System.getProperty("http.proxyHost");
+    String proxyPort = System.getProperty("http.proxyPort");
+
+    Proxy proxy =
+        (proxyHost != null && proxyPort != null)
+            ? new Proxy(
+                Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)))
+            : config.proxy();
+
+    ProxySelector proxySelector =
+        new ProxySelector() {
+          @Override
+          public List<Proxy> select(URI uri) {
+            if (proxy == null) {
               return List.of();
             }
-
-            @Override
-            public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
-              // Do nothing
+            if (uri.getScheme().toLowerCase().startsWith("http")) {
+              return List.of(proxy);
             }
-          };
-      builder = builder.proxy(proxySelector);
+            return List.of();
+          }
+
+          @Override
+          public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
+            // Do nothing
+          }
+        };
+    builder = builder.proxy(proxySelector);
+
+    SSLContext sslContext = config.sslContext();
+    if (sslContext != null) {
+      builder.sslContext(sslContext);
+    }
+
+    String version = config.version();
+    if (version != null) {
+      builder.version(Version.valueOf(version));
     }
 
     this.client = builder.build();
@@ -143,7 +168,13 @@ public class JdkHttpClient implements HttpClient {
 
   @Override
   public WebSocket openSocket(HttpRequest request, WebSocket.Listener listener) {
-    URI uri = getWebSocketUri(request);
+    URI uri;
+
+    try {
+      uri = getWebSocketUri(request);
+    } catch (URISyntaxException e) {
+      throw new ConnectionFailedException("JdkWebSocket initial request execution error", e);
+    }
 
     CompletableFuture<java.net.http.WebSocket> webSocketCompletableFuture =
         client
@@ -218,28 +249,20 @@ public class JdkHttpClient implements HttpClient {
       underlyingSocket =
           webSocketCompletableFuture.get(readTimeout.toMillis(), TimeUnit.MILLISECONDS);
     } catch (CancellationException e) {
-      throw new WebDriverException(e.getMessage(), e);
+      throw new ConnectionFailedException("JdkWebSocket initial request canceled", e);
     } catch (ExecutionException e) {
       Throwable cause = e.getCause();
-
-      if (cause instanceof HttpTimeoutException) {
-        throw new TimeoutException(cause);
-      } else if (cause instanceof IOException) {
-        throw new UncheckedIOException((IOException) cause);
-      } else if (cause instanceof RuntimeException) {
-        throw (RuntimeException) cause;
-      }
-
-      throw new WebDriverException((cause != null) ? cause : e);
+      throw new ConnectionFailedException(
+          "JdkWebSocket initial request execution error", (cause != null) ? cause : e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException(e);
+      throw new ConnectionFailedException("JdkWebSocket initial request interrupted", e);
     } catch (java.util.concurrent.TimeoutException e) {
       webSocketCompletableFuture.cancel(true);
-      throw new TimeoutException(e);
+      throw new ConnectionFailedException("JdkWebSocket initial request timeout", e);
     }
 
-    this.websocket =
+    WebSocket websocket =
         new WebSocket() {
           @Override
           public WebSocket send(Message message) {
@@ -305,52 +328,45 @@ public class JdkHttpClient implements HttpClient {
           @Override
           public void close() {
             LOG.fine("Closing websocket");
-            synchronized (underlyingSocket) {
-              if (!underlyingSocket.isOutputClosed()) {
-                underlyingSocket.sendClose(1000, "WebDriver closing socket");
-              }
-            }
+            send(new CloseMessage(1000, "WebDriver closing socket"));
           }
         };
-    return this.websocket;
+    websockets.add(websocket);
+    return websocket;
   }
 
-  private URI getWebSocketUri(HttpRequest request) {
+  private URI getWebSocketUri(HttpRequest request) throws URISyntaxException {
     URI uri = messages.getRawUri(request);
     if ("http".equalsIgnoreCase(uri.getScheme())) {
-      try {
-        uri =
-            new URI(
-                "ws",
-                uri.getUserInfo(),
-                uri.getHost(),
-                uri.getPort(),
-                uri.getPath(),
-                uri.getQuery(),
-                uri.getFragment());
-      } catch (URISyntaxException e) {
-        throw new RuntimeException(e);
-      }
+      uri =
+          new URI(
+              "ws",
+              uri.getUserInfo(),
+              uri.getHost(),
+              uri.getPort(),
+              uri.getPath(),
+              uri.getQuery(),
+              uri.getFragment());
     } else if ("https".equalsIgnoreCase(uri.getScheme())) {
-      try {
-        uri =
-            new URI(
-                "wss",
-                uri.getUserInfo(),
-                uri.getHost(),
-                uri.getPort(),
-                uri.getPath(),
-                uri.getQuery(),
-                uri.getFragment());
-      } catch (URISyntaxException e) {
-        throw new RuntimeException(e);
-      }
+      uri =
+          new URI(
+              "wss",
+              uri.getUserInfo(),
+              uri.getHost(),
+              uri.getPort(),
+              uri.getPath(),
+              uri.getQuery(),
+              uri.getFragment());
     }
     return uri;
   }
 
   @Override
   public HttpResponse execute(HttpRequest req) throws UncheckedIOException {
+    return handler.execute(req);
+  }
+
+  private HttpResponse execute0(HttpRequest req) throws UncheckedIOException {
     Objects.requireNonNull(req, "Request");
 
     LOG.fine("Executing request: " + req);
@@ -443,11 +459,18 @@ public class JdkHttpClient implements HttpClient {
 
   @Override
   public void close() {
-    executorService.shutdownNow();
-    if (this.websocket != null) {
-      this.websocket.close();
+    if (this.client == null) {
+      return;
     }
     this.client = null;
+    for (WebSocket websocket : websockets) {
+      try {
+        websocket.close();
+      } catch (Exception e) {
+        LOG.log(Level.WARNING, "failed to close the websocket: " + websocket, e);
+      }
+    }
+    executorService.shutdownNow();
   }
 
   @AutoService(HttpClient.Factory.class)

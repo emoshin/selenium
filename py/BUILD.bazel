@@ -1,28 +1,31 @@
+load("@py_dev_requirements//:requirements.bzl", "requirement")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
 load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
-load("@py_dev_requirements//:requirements.bzl", "requirement")
+load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 load("//common:defs.bzl", "copy_file")
 load("//py:defs.bzl", "generate_devtools", "py_test_suite")
 load("//py/private:browsers.bzl", "BROWSERS")
 load("//py/private:import.bzl", "py_import")
-load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 
 compile_pip_requirements(
     # base name for generated targets, typically "requirements"
     name = "requirements",
     requirements_in = ":requirements.txt",
     requirements_txt = ":requirements_lock.txt",
+    tags = [
+        "skip-remote",  # This test won't run on the RBE because of a lack of network connectivity
+    ],
 )
 
-SE_VERSION = "4.10.0"
+SE_VERSION = "4.15.2"
 
 BROWSER_VERSIONS = [
     "v85",
-    "v112",
-    "v113",
-    "v114",
+    "v119",
+    "v117",
+    "v118",
 ]
 
 TEST_DEPS = [
@@ -124,10 +127,10 @@ py_library(
         ":firefox-driver-prefs",
         ":get-attribute",
         ":is-displayed",
-        ":mutation-listener",
         ":manager-linux",
         ":manager-macos",
         ":manager-windows",
+        ":mutation-listener",
     ] + [":create-cdp-srcs-" + n for n in BROWSER_VERSIONS],
     imports = ["."],
     visibility = ["//visibility:public"],
@@ -203,7 +206,6 @@ py_wheel(
         "Topic :: Software Development :: Testing",
         "Topic :: Software Development :: Libraries",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
@@ -212,7 +214,7 @@ py_wheel(
     distribution = "selenium",
     homepage = "https://www.selenium.dev",
     license = "Apache 2.0",
-    python_requires = ">=3.7",
+    python_requires = ">=3.8",
     python_tag = "py3",
     requires = [
         "urllib3[socks]>=1.26,<3",
@@ -355,6 +357,7 @@ py_test_suite(
     ],
     tags = [
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",
@@ -380,6 +383,7 @@ py_test_suite(
     ],
     tags = [
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",
@@ -402,6 +406,7 @@ py_test_suite(
     ],
     tags = [
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",
@@ -425,6 +430,7 @@ py_test_suite(
     ],
     tags = [
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",
@@ -449,6 +455,7 @@ py_test_suite(
     ],
     tags = [
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",
@@ -471,6 +478,7 @@ py_test_suite(
     ],
     tags = [
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",
@@ -494,6 +502,7 @@ py_test_suite(
     tags = [
         "exclusive-if-local",
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",
@@ -518,6 +527,7 @@ py_test_suite(
     tags = [
         "exclusive-if-local",
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",
@@ -542,6 +552,7 @@ py_test_suite(
     tags = [
         "exclusive-if-local",
         "no-sandbox",
+        "skip-remote",
     ],
     deps = [
         ":init-tree",

@@ -12,9 +12,9 @@ rb_library(
         "spec_support/**/*",
     ]),
     data = [
+        "//rb:manager-linux",
         "//rb:manager-macos",
         "//rb:manager-windows",
-        "//rb:manager-linux",
     ] + select({
         "//rb/spec/integration:remote": ["//java/src/org/openqa/selenium/grid:selenium_server_deploy.jar"],
         "//conditions:default": [],
@@ -54,7 +54,7 @@ rb_test(
     args = ["rb/spec/"],
     env = ENV,
     main = "@bundle//:bin/rspec",
-    tags = TAGS,
+    tags = TAGS + ["exclusive-if-local"],
     deps = [
         ":spec_helper",
         "//rb/lib/selenium/devtools",
@@ -69,7 +69,7 @@ rb_test(
     args = ["rb/spec/"],
     env = ENV,
     main = "@bundle//:bin/rspec",
-    tags = TAGS,
+    tags = TAGS + ["exclusive-if-local"],
     deps = [
         ":spec_helper",
         "//rb/lib/selenium/devtools",

@@ -43,6 +43,7 @@ const LogInspector = require('./bidi/logInspector')
 const BrowsingContext = require('./bidi/browsingContext')
 const BrowsingConextInspector = require('./bidi/browsingContextInspector')
 const ScriptManager = require('./bidi/scriptManager')
+const NetworkInspector = require('./bidi/networkInspector')
 
 const Browser = capabilities.Browser
 const Capabilities = capabilities.Capabilities
@@ -193,7 +194,7 @@ function createDriver(ctor, ...args) {
 class Builder {
   constructor() {
     /** @private @const */
-    this.log_ = logging.getLogger('webdriver.Builder')
+    this.log_ = logging.getLogger(`${logging.Type.DRIVER}.Builder`)
 
     /** @private {string} */
     this.url_ = ''
@@ -803,3 +804,4 @@ exports.LogInspector = LogInspector
 exports.BrowsingContext = BrowsingContext
 exports.BrowsingConextInspector = BrowsingConextInspector
 exports.ScriptManager = ScriptManager
+exports.NetworkInspector = NetworkInspector
