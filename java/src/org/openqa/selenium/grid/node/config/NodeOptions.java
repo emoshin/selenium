@@ -162,6 +162,21 @@ public class NodeOptions {
     return config.getBool(NODE_SECTION, "enable-managed-downloads").orElse(Boolean.FALSE);
   }
 
+  public String getGridSubPath() {
+    return normalizeSubPath(getPublicGridUri().map(URI::getPath).orElse(""));
+  }
+
+  public static String normalizeSubPath(String prefix) {
+    prefix = prefix.trim();
+    if (!prefix.startsWith("/")) {
+      prefix = "/" + prefix; // Prefix with a '/' if absent.
+    }
+    if (prefix.endsWith("/")) {
+      prefix = prefix.substring(0, prefix.length() - 1); // Remove the trailing '/' if present.
+    }
+    return prefix;
+  }
+
   public Node getNode() {
     return config.getClass(NODE_SECTION, "implementation", Node.class, DEFAULT_NODE_IMPLEMENTATION);
   }
@@ -507,7 +522,7 @@ public class NodeOptions {
               sessionFactories.putAll(capabilities, entry.getValue());
             });
 
-    if (sessionFactories.build().size() == 0) {
+    if (sessionFactories.build().isEmpty()) {
       String logMessage = "No drivers have been configured or have been found on PATH";
       LOG.warning(logMessage);
       throw new ConfigException(logMessage);

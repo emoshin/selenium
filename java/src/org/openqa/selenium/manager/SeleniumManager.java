@@ -97,6 +97,8 @@ public class SeleniumManager {
                       }
                     }
                   }));
+    } else {
+      LOG.fine(String.format("Selenium Manager set by env 'SE_MANAGER_PATH': %s", managerPath));
     }
   }
 
@@ -258,6 +260,8 @@ public class SeleniumManager {
     List<String> arguments = new ArrayList<>();
     arguments.add("--browser");
     arguments.add(options.getBrowserName());
+    arguments.add("--language-binding");
+    arguments.add("java");
     arguments.add("--output");
     arguments.add("json");
 
