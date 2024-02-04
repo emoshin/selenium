@@ -84,6 +84,23 @@ suite(
         assert.notEqual(result.result.value.context, null)
       })
 
+      it('can call function to get element', async function () {
+        await driver.get(Pages.logEntryAdded)
+        const id = await driver.getWindowHandle()
+        const manager = await ScriptManager(id, driver)
+
+        const result = await manager.callFunctionInBrowsingContext(
+          id,
+          '() => document.getElementById(\"consoleLog\")',
+          false
+        )
+        assert.equal(result.resultType, EvaluateResultType.SUCCESS)
+        assert.notEqual(result.realmId, null)
+        assert.equal(result.result.type, 'node')
+        assert.notEqual(result.result.value, null)
+        assert.notEqual(result.result.value.nodeType, null)
+      })
+
       it('can call function with arguments', async function () {
         const id = await driver.getWindowHandle()
         const manager = await ScriptManager(id, driver)
@@ -984,6 +1001,27 @@ suite(
         })
 
         await browsingContext.navigate(Pages.blankPage, 'complete')
+
+        assert.notEqual(realmInfo, null)
+        assert.notEqual(realmInfo.realmId, null)
+        assert.equal(realmInfo.realmType, RealmType.WINDOW)
+      })
+
+      xit('can listen to realm destroyed message', async function () {
+        const manager = await ScriptManager(undefined, driver)
+
+        let realmInfo = null
+
+        await manager.onRealmDestroyed((result) => {
+          realmInfo = result
+        })
+
+        const id = await driver.getWindowHandle()
+        const browsingContext = await BrowsingContext(driver, {
+          browsingContextId: id,
+        })
+
+        await browsingContext.close()
 
         assert.notEqual(realmInfo, null)
         assert.notEqual(realmInfo.realmId, null)
