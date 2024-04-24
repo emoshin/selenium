@@ -1,11 +1,11 @@
 using Bazel;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
-using System.Diagnostics;
-using System.Text;
-using System.Runtime.InteropServices;
 using System.Net.Http;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace OpenQA.Selenium.Environment
 {
@@ -13,7 +13,7 @@ namespace OpenQA.Selenium.Environment
     {
         private Process webserverProcess;
 
-        private string standaloneTestJar = @"selenium/java/test/org/openqa/selenium/environment/appserver";
+        private string standaloneTestJar = @"_main/java/test/org/openqa/selenium/environment/appserver";
         private string projectRootPath;
         private bool captureWebServerOutput;
         private bool hideCommandPrompt;

@@ -99,8 +99,8 @@ task '//java/test/org/openqa/selenium/environment/webserver:webserver:uber' => [
 JAVA_RELEASE_TARGETS = %w[
   //java/src/org/openqa/selenium/chrome:chrome.publish
   //java/src/org/openqa/selenium/chromium:chromium.publish
-  //java/src/org/openqa/selenium/devtools/v119:v119.publish
-  //java/src/org/openqa/selenium/devtools/v120:v120.publish
+  //java/src/org/openqa/selenium/devtools/v122:v122.publish
+  //java/src/org/openqa/selenium/devtools/v123:v123.publish
   //java/src/org/openqa/selenium/devtools/v121:v121.publish
   //java/src/org/openqa/selenium/devtools/v85:v85.publish
   //java/src/org/openqa/selenium/edge:edge.publish
@@ -496,7 +496,7 @@ namespace :node do
   end
 
   task :'dry-run' do
-    Bazel.execute('run', ['--stamp'], '//javascript/node/selenium-webdriver:selenium-webdriver.pack')
+    Bazel.execute('run', ['--stamp'], '//javascript/node/selenium-webdriver:selenium-webdriver.publish  -- --dry-run=true')
   end
 
   desc 'Release Node npm package'
@@ -520,16 +520,43 @@ namespace :node do
 
   desc 'Update Node version'
   task :version, [:version] do |_task, arguments|
+    bump_nightly = arguments[:version] === 'nightly'
     old_version = node_version
-    new_version = updated_version(old_version, arguments[:version])
+    new_version = nil
+
+    # There are three cases we want to deal with:
+    # 1. Switching from a release build to a nightly one
+    # 2. Updating a nightly build for the next nightly build
+    # 3. Switching from nightlies to a release build.
+
+    if bump_nightly && old_version.include?('-nightly')
+      # This is the case where we are updating a nightly build to the next nightly build.
+      # This change is usually done by the CI system and never committed.
+      # The "-nightlyYmdHM" is removed to add a new timestamp.
+      new_version = old_version.gsub(/\-nightly\d+$/, '') + "-nightly#{Time.now.strftime("%Y%m%d%H%M")}"
+    elsif bump_nightly
+      # This is the case after a production release and the version number is configured
+      # to start doing nightly builds.
+      new_version = old_version + "-nightly#{Time.now.strftime("%Y%m%d%H%M")}"
+    else
+      if old_version.include?('-nightly')
+        # From a nightly build to a release build.
+        new_version = old_version.gsub(/\-nightly\d+$/, '')
+      else
+        # From a release build to a nightly build. We use npm version for this.
+        new_version = updated_version(old_version.gsub(/\-nightly\d+$/, ''), arguments[:version])
+        new_version = new_version + "-nightly#{Time.now.strftime("%Y%m%d%H%M")}"
+      end
+    end
 
     ['javascript/node/selenium-webdriver/package.json',
-     'javascript/node/selenium-webdriver/package-lock.json'].each do |file|
+     'package-lock.json',
+     'javascript/node/selenium-webdriver/BUILD.bazel'].each do |file|
       text = File.read(file).gsub(old_version, new_version)
       File.open(file, "w") { |f| f.puts text }
     end
 
-    Rake::Task['node:changelog'].invoke
+    Rake::Task['node:changelog'].invoke unless new_version.include?('-nightly') || bump_nightly
   end
 end
 
@@ -621,8 +648,32 @@ namespace :py do
 
   desc 'Update Python version'
   task :version, [:version] do |_task, arguments|
+    bump_nightly = arguments[:version] === 'nightly'
     old_version = python_version
-    new_version = updated_version(old_version, arguments[:version])
+    new_version = nil
+
+    # There are three cases we want to deal with:
+    # 1. Switching from a release build to a nightly one
+    # 2. Updating a nightly build for the next nightly build
+    # 3. Switching from nightlies to a release build.
+
+    if bump_nightly && old_version.include?('.dev')
+      # This is the case where we are updating a nightly build to the next nightly build.
+      # This change is usually done by the CI system and never committed.
+      # The ".dev" is removed to have the pushed package in TestPyPi be shown as latest.
+      new_version = old_version.gsub(/\.dev\d+$/, '') + + ".#{Time.now.strftime("%Y%m%d%H%M")}"
+    elsif bump_nightly
+      # This is the case after a production release and the version number is configured
+      # to start doing nightly builds.
+      new_version = old_version + ".dev#{Time.now.strftime("%Y%m%d%H%M")}"
+    else
+      if old_version.include?('.dev')
+        new_version = old_version.gsub(/\.dev\d+$/, '')
+      else
+        new_version = updated_version(old_version.gsub(/\.dev\d+$/, ''), arguments[:version])
+        new_version = new_version + ".dev#{Time.now.strftime("%Y%m%d%H%M")}"
+      end
+    end
 
     ['py/setup.py',
      'py/BUILD.bazel',
@@ -639,7 +690,7 @@ namespace :py do
     text = File.read('py/docs/source/conf.py').gsub(old_short_version, new_short_version)
     File.open('py/docs/source/conf.py', "w") { |f| f.puts text }
 
-    Rake::Task['py:changelog'].invoke
+    Rake::Task['py:changelog'].invoke unless new_version.include?('.dev') || bump_nightly
   end
 
   desc 'Update Python Syntax'
@@ -667,6 +718,23 @@ namespace :py do
     task :remote do
       Rake::Task['py:clean'].invoke
       Bazel.execute('test', [],"//py:test-remote")
+    end
+  end
+
+  namespace :test do
+    desc 'Python unit tests'
+    task :unit do
+      Rake::Task['py:clean'].invoke
+      Bazel.execute('test', ['--test_size_filters=small'], '//py/...')
+    end
+
+    %i[chrome edge firefox safari].each do |browser|
+      desc "Python #{browser} tests"
+      task browser do
+        Rake::Task['py:clean'].invoke
+        Bazel.execute('test', %w[--test_output all],"//py:common-#{browser}")
+        Bazel.execute('test', %w[--test_output all],"//py:test-#{browser}")
+      end
     end
   end
 end
@@ -704,7 +772,8 @@ namespace :rb do
   task :docs, [:skip_update] do |_task, arguments|
     FileUtils.rm_rf('build/docs/api/rb/')
     Bazel.execute('run', [], '//rb:docs')
-    FileUtils.cp_r('bazel-bin/rb/docs.rb.sh.runfiles/selenium/docs/api/rb/.', 'build/docs/api/rb')
+    FileUtils.mkdir_p('build/docs/api')
+    FileUtils.cp_r('bazel-bin/rb/docs.sh.runfiles/_main/docs/api/rb/.', 'build/docs/api/rb')
 
     unless arguments[:skip_update]
       puts "Updating Ruby documentation"
@@ -769,9 +838,21 @@ namespace :dotnet do
     Rake::Task['dotnet:build'].invoke(args)
     Rake::Task['dotnet:zip_assets'].invoke(args)
 
+    release_version = dotnet_version
+    api_key = ENV.fetch('NUGET_API_KEY', nil)
+    push_destination = 'https://api.nuget.org/v3/index.json'
+    if release_version.include?('-nightly')
+      # Nightly builds are pushed to GitHub NuGet repository
+      # This commands will run in GitHub Actions
+      api_key = ENV.fetch('GITHUB_TOKEN', nil)
+      github_push_url = 'https://nuget.pkg.github.com/seleniumhq/index.json'
+      push_destination = 'github'
+      sh "dotnet nuget add source --username seleniumhq --password #{api_key} --store-password-in-clear-text --name #{push_destination} #{github_push_url}"
+    end
+
     ["./bazel-bin/dotnet/src/webdriver/Selenium.WebDriver.#{dotnet_version}.nupkg",
      "./bazel-bin/dotnet/src/support/Selenium.Support.#{dotnet_version}.nupkg"].each do |asset|
-      sh "dotnet nuget push #{asset} --api-key #{ENV.fetch('NUGET_API_KEY', nil)} --source https://api.nuget.org/v3/index.json"
+      sh "dotnet nuget push #{asset} --api-key #{api_key} --source #{push_destination}"
     end
   end
 
@@ -812,14 +893,38 @@ namespace :dotnet do
 
   desc 'Update .NET version'
   task :version, [:version] do |_task, arguments|
+    bump_nightly = arguments[:version] === 'nightly'
     old_version = dotnet_version
-    new_version = updated_version(old_version, arguments[:version])
+    new_version = nil
+
+    # There are three cases we want to deal with:
+    # 1. Switching from a release build to a nightly one
+    # 2. Updating a nightly build for the next nightly build
+    # 3. Switching from nightlies to a release build.
+
+    if bump_nightly && old_version.include?('-nightly')
+      # This is the case where we are updating a nightly build to the next nightly build.
+      # This change is usually done by the CI system and never committed.
+      # The "-nightlyYmdHM" is removed to add a new timestamp.
+      new_version = old_version.gsub(/\-nightly\d+$/, '') + "-nightly#{Time.now.strftime("%Y%m%d%H%M")}"
+    elsif bump_nightly
+      # This is the case after a production release and the version number is configured
+      # to start doing nightly builds.
+      new_version = old_version + "-nightly#{Time.now.strftime("%Y%m%d%H%M")}"
+    else
+      if old_version.include?('-nightly')
+        new_version = old_version.gsub(/\-nightly\d+$/, '')
+      else
+        new_version = updated_version(old_version.gsub(/\-nightly\d+$/, ''), arguments[:version])
+        new_version = new_version + "-nightly#{Time.now.strftime("%Y%m%d%H%M")}"
+      end
+    end
 
     file = 'dotnet/selenium-dotnet-version.bzl'
     text = File.read(file).gsub(old_version, new_version)
     File.open(file, "w") { |f| f.puts text }
 
-    Rake::Task['dotnet:changelog'].invoke
+    Rake::Task['dotnet:changelog'].invoke unless new_version.include?('-nightly') || bump_nightly
   end
 end
 
@@ -869,7 +974,7 @@ namespace :java do
     args = ['--action_env=RULES_JVM_EXTERNAL_REPIN=1']
     Bazel.execute('run', args, '@unpinned_maven//:pin')
 
-    file_path = 'java/maven_deps.bzl'
+    file_path = 'MODULE.bazel'
     content = File.read(file_path)
     # For some reason ./go wrapper is not outputting from Open3, so cannot use Bazel class directly
     output = `bazel run @maven//:outdated`
@@ -1016,12 +1121,17 @@ namespace :all do
 
     puts "Committing nightly version updates"
     commit!('update versions to nightly', ['java/version.bzl',
-                                                   'rb/lib/selenium/webdriver/version.rb',
-                                                   'rb/Gemfile.lock',
-                                                   'rust/BUILD.bazel',
-                                                   'rust/Cargo.Bazel.lock',
-                                                   'rust/Cargo.lock',
-                                                   'rust/Cargo.toml'])
+                                                'rb/lib/selenium/webdriver/version.rb',
+                                                'rb/Gemfile.lock',
+                                                'py/setup.py',
+                                                'py/BUILD.bazel',
+                                                'py/selenium/__init__.py',
+                                                'py/selenium/webdriver/__init__.py',
+                                                'py/docs/source/conf.py',
+                                                'rust/BUILD.bazel',
+                                                'rust/Cargo.Bazel.lock',
+                                                'rust/Cargo.lock',
+                                                'rust/Cargo.toml'])
 
     print 'Do you want to push the committed changes? (Y/n): '
     response = STDIN.gets.chomp.downcase
@@ -1030,7 +1140,12 @@ namespace :all do
 
   desc 'Update everything in preparation for a release'
   task :prepare, [:channel] do |_task, arguments|
-    args = Array(arguments[:channel]) ? ['--', "--chrome_channel=#{arguments[:channel].capitalize}"] : []
+    chrome_channel = if arguments[:channel].nil?
+                        'Stable'
+                     else
+                        arguments[:channel]
+                     end
+    args = Array(chrome_channel) ? ['--', "--chrome_channel=#{chrome_channel.capitalize}"] : []
     Bazel.execute('run', args, '//scripts:pinned_browsers')
     commit!('Update pinned browser versions', ['common/repositories.bzl'])
 
@@ -1067,7 +1182,7 @@ namespace :all do
              'java/version.bzl',
              'javascript/node/selenium-webdriver/CHANGES.md',
              'javascript/node/selenium-webdriver/package.json',
-             'javascript/node/selenium-webdriver/package-lock.json',
+             'package-lock.json',
              'py/docs/source/conf.py',
              'py/selenium/__init__.py',
              'py/selenium/webdriver/__init__.py',
@@ -1087,6 +1202,7 @@ namespace :all do
       Rake::Task['java:version'].invoke
       Rake::Task['rb:version'].invoke
       Rake::Task['rust:version'].invoke
+      Rake::Task['py:version'].invoke
     else
       Rake::Task['java:version'].invoke(version)
       Rake::Task['rb:version'].invoke(version)
@@ -1135,6 +1251,7 @@ task :create_release_notes do
 end
 
 def updated_version(current, desired = nil)
+  puts "Calculating "
   version = desired ? desired.split('.') : current.split(/\.|-/)
   if desired
     # Allows user to pass in only major/minor versions
@@ -1201,7 +1318,7 @@ def update_gh_pages
   return restore_git(origin_reference) unless response == 'y' || response == 'yes'
 
   puts "Committing changes"
-  commit!('updating all API docs', 'docs/api/')
+  commit!('updating all API docs', ['docs/api/'])
 
   puts "Pushing changes to upstream repository"
   @git.push
