@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.openqa.selenium.testing.TestUtilities.getEffectivePlatform;
 import static org.openqa.selenium.testing.drivers.Browser.CHROME;
+import static org.openqa.selenium.testing.drivers.Browser.EDGE;
 import static org.openqa.selenium.testing.drivers.Browser.IE;
 import static org.openqa.selenium.testing.drivers.Browser.SAFARI;
 
@@ -197,16 +198,18 @@ class DefaultKeyboardTest extends JupiterTestBase {
   }
 
   @Test
-  @NotYetImplemented(
-      value = CHROME,
-      reason = "https://github.com/GoogleChromeLabs/chromium-bidi/issues/2321")
-  public void testSelectionSelectBySymbol() {
+  public void testSelectionSelectBySymbol() throws InterruptedException {
     driver.get(appServer.whereIs("single_text_input.html"));
 
     WebElement input = driver.findElement(By.id("textInput"));
 
     inputModule.perform(
         windowHandle, getBuilder(driver).click(input).sendKeys("abc def").getSequences());
+
+    // TODO: The wait until condition does not wait for the attribute.
+    // Hence this is required.
+    // Not an ideal fix but it needs to be triaged further.
+    Thread.sleep(5000);
 
     shortWait.until(ExpectedConditions.attributeToBe(input, "value", "abc def"));
 
@@ -228,6 +231,9 @@ class DefaultKeyboardTest extends JupiterTestBase {
   @Ignore(IE)
   @NotYetImplemented(
       value = CHROME,
+      reason = "https://github.com/GoogleChromeLabs/chromium-bidi/issues/2321")
+  @NotYetImplemented(
+      value = EDGE,
       reason = "https://github.com/GoogleChromeLabs/chromium-bidi/issues/2321")
   public void testSelectionSelectByWord() {
     assumeFalse(getEffectivePlatform(driver).is(Platform.MAC), "MacOS has alternative keyboard");
