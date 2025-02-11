@@ -225,6 +225,7 @@ class JmxTest {
               new DefaultSlotMatcher(),
               Duration.ofSeconds(2),
               Duration.ofSeconds(2),
+              Duration.ofSeconds(1),
               new Secret(""),
               5);
 
@@ -278,6 +279,7 @@ class JmxTest {
             new DefaultSlotMatcher(),
             Duration.ofSeconds(2),
             Duration.ofSeconds(2),
+            Duration.ofSeconds(1),
             secret,
             5);
 
@@ -294,7 +296,8 @@ class JmxTest {
             false,
             Duration.ofSeconds(5),
             Runtime.getRuntime().availableProcessors(),
-            new DefaultSlotMatcher())) {
+            new DefaultSlotMatcher(),
+            Duration.ofSeconds(30))) {
 
       distributor.add(localNode);
 

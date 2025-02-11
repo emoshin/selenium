@@ -13,7 +13,7 @@
   <ItemGroup>
     <PackageReference Include="BenderProxy" Version="1.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.6.1" />
-    <PackageReference Include="Moq" Version="4.13.0" />
+    <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="NUnit" Version="3.14.0" />
     <PackageReference Include="Runfiles" Version="0.12.0" />
@@ -34,7 +34,7 @@
   </ItemGroup>
 
   <Target Name="BuildTestWebServer" AfterTargets="AfterBuild">
-    <Exec Command="bazel build //java/test/org/openqa/selenium/environment:appserver_deploy.jar" />
+    <Exec Command="bazel build //java/test/org/openqa/selenium/environment:appserver_deploy.jar" WorkingDirectory="../../.." />
   </Target>
 
   <!-- It is automatically imported when Selenium.WebDriver consumed via nuget package -->
